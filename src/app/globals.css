@@ -1,0 +1,130 @@
+@config "../../tailwind.config.js";
+@import "tailwindcss";
+
+:root {
+  --foreground-rgb: 18, 18, 18;
+  --background-rgb: 255, 255, 255;
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --accent-color: #108474;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: var(--font-inter);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Clean typography */
+h1, h2, h3 {
+  font-family: var(--font-inter);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus visible styles */
+:focus-visible {
+  outline: 2px solid #108474;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for interactive elements only */
+a, button, input, select, textarea {
+  transition-property: background-color, border-color, color, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Utility classes */
+@layer utilities {
+  .font-display {
+    font-family: var(--font-inter);
+    font-weight: 700;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .custom-line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.5s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.5s ease-out;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
