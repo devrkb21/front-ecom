@@ -28,17 +28,9 @@ yarn-error.log*
 !.env.example
 !.env*.example
 
-# Vercel
-.vercel
-
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
-
-# Cloudflare
-.wrangler/
-.dev.vars
-.open-next/
 
 .codex-logs/
 # Editors
