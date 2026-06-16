@@ -27,6 +27,7 @@ export interface LandingPage {
   testimonials: TestimonialItem[] | null;
   custom_css: string | null;
   is_active: boolean;
+  show_location?: boolean;
   views_count: number;
   created_at: string;
   updated_at: string;

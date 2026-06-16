@@ -1047,12 +1047,8 @@ export default function CheckoutPage() {
         setShippingMethods(methods);
         // Auto-select first method if available
         if (methods.length > 0) {
-          setSelectedShippingMethod((current) => {
-            const nextCode = methods.some((method) => method.code === current) ? current : methods[0].code;
-            const selected = methods.find((method) => method.code === nextCode);
-            setShippingCost(selected?.cost ?? methods[0].cost);
-            return nextCode;
-          });
+          setSelectedShippingMethod(methods[0].code);
+          setShippingCost(methods[0].cost);
         } else {
           setSelectedShippingMethod('');
           setShippingCost(0);

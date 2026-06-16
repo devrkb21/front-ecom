@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { Header, Footer, ScrollToTop } from '@/components/layout';
+import { Header, Footer, ScrollToTop, ConditionalLayout } from '@/components/layout';
 import { DeferredClientWidgets } from '@/components/layout/DeferredClientWidgets';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -339,11 +339,14 @@ export default async function RootLayout({
             <ScrollToTop />
           </Suspense>
           <div className="min-h-screen flex flex-col">
-            <Header />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
+            <ConditionalLayout
+              header={<Header />}
+              footer={<Footer />}
+            >
+              <main className="flex-1">
+                {children}
+              </main>
+            </ConditionalLayout>
             <Suspense fallback={null}>
               <DeferredClientWidgets />
             </Suspense>

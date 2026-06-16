@@ -22,6 +22,7 @@ export interface AbandonedCartTrackItem {
 
 export interface AbandonedCartTrackPayload {
   checkout_step: AbandonedCheckoutStep;
+  landing_page_slug?: string;
   email?: string;
   phone?: string;
   name?: string;
