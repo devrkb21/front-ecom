@@ -29,6 +29,10 @@ export interface NavigationMenuItem {
   label: string;
   url: string;
   type?: string;
+  highlight?: boolean;
+  highlight_bg?: string;
+  highlight_text?: string;
+  children?: NavigationMenuItem[];
 }
 
 export interface NavigationSettings {

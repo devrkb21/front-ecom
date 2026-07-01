@@ -28,7 +28,14 @@ export function Header() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [menuItems, setMenuItems] = useState<{label: string, url: string, children?: {label: string, url: string}[]}[]>([]);
+  const [menuItems, setMenuItems] = useState<{
+    label: string;
+    url: string;
+    highlight?: boolean;
+    highlight_bg?: string;
+    highlight_text?: string;
+    children?: { label: string; url: string }[];
+  }[]>([]);
   const [siteName, setSiteName] = useState('Our Store');
   const [siteLogo, setSiteLogo] = useState('');
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -81,9 +88,18 @@ export function Header() {
             <Link
               href={item.url}
               className={cn(
-                "flex-1 py-3.5 px-4 text-sm font-medium text-gray-800 hover:text-accent-600 hover:bg-gray-50 transition-colors",
-                level > 0 && "pl-8 text-[13px] text-gray-600"
+                "flex-1 transition-all duration-200",
+                item.highlight
+                  ? "font-semibold rounded-lg m-2 py-2 px-4 border text-center"
+                  : level > 0
+                    ? "py-3.5 pl-8 text-[13px] text-gray-600 hover:text-accent-600 hover:bg-gray-50"
+                    : "py-3.5 px-4 text-sm font-medium text-gray-800 hover:text-accent-600 hover:bg-gray-50"
               )}
+              style={item.highlight ? {
+                backgroundColor: item.highlight_bg || '#1f1f1f',
+                color: item.highlight_text || '#d4af37',
+                borderColor: item.highlight_text || '#d4af37',
+              } : undefined}
               onClick={() => setIsMenuOpen(false)}
             >
               {item.label}
@@ -490,15 +506,22 @@ export function Header() {
         <div className="container mx-auto px-4">
           <div className="flex flex-wrap items-center justify-center gap-1 py-0">
             {menuItems.map((item, index) => (
-              <div key={index} className="group relative">
+              <div key={index} className="group relative flex items-center">
                 <Link
                   href={item.url}
                   className={cn(
-                    'inline-block px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors',
-                    pathname === item.url
-                      ? 'text-accent-600 border-b-2 border-accent-600'
-                      : 'text-gray-700 hover:text-accent-600'
+                    'inline-block whitespace-nowrap transition-all duration-200',
+                    item.highlight
+                      ? 'px-4 py-1.5 text-sm font-semibold rounded-full border shadow-sm mx-1'
+                      : pathname === item.url
+                        ? 'px-4 py-3 text-sm font-medium text-accent-600 border-b-2 border-accent-600'
+                        : 'px-4 py-3 text-sm font-medium text-gray-700 hover:text-accent-600'
                   )}
+                  style={item.highlight ? {
+                    backgroundColor: item.highlight_bg || '#1f1f1f',
+                    color: item.highlight_text || '#d4af37',
+                    borderColor: item.highlight_text || '#d4af37',
+                  } : undefined}
                 >
                   <div className="flex items-center gap-1">
                     {item.label}

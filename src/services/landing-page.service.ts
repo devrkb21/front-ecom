@@ -16,7 +16,8 @@ export interface TestimonialItem {
 
 export interface LandingPage {
   id: number;
-  product_id: number;
+  product_id: number | null;
+  product_ids: number[] | null;
   title: string;
   slug: string;
   template_type: 'default' | 'clothing' | 'am' | 'khejur' | 'digital_item' | 'inner_item' | 'sexual_item';
@@ -31,7 +32,10 @@ export interface LandingPage {
   views_count: number;
   created_at: string;
   updated_at: string;
+  // Legacy single product (first in list)
   product?: Product;
+  // All linked products (multiple product support)
+  linked_products?: Product[];
 }
 
 export const landingPageService = {

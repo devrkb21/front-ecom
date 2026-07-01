@@ -113,6 +113,9 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
   const router = useRouter();
 
   const [landingPage, setLandingPage] = useState<LandingPage | null>(null);
+  // Multiple products support
+  const [products, setProducts] = useState<Product[]>([]);
+  // Primary product (first in list, kept for backward compat)
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +143,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
 
   // Cart and product selection states
   interface CartItem {
+    productId: number;
     variantId: number | null;
     name: string;
     price: number;
@@ -185,8 +189,15 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
         setLoading(true);
         const data = await landingPageService.getLandingPageBySlug(slug);
         setLandingPage(data);
-        if (data.product) {
-          setProduct(data.product);
+        // Support multiple products: prefer linked_products, fallback to product
+        const allProducts: Product[] = data.linked_products && data.linked_products.length > 0
+          ? data.linked_products
+          : data.product
+            ? [data.product]
+            : [];
+        setProducts(allProducts);
+        if (allProducts.length > 0) {
+          setProduct(allProducts[0]);
         }
       } catch (err: unknown) {
         console.error('Failed to load landing page:', err);
@@ -235,21 +246,22 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
     }
   }, [bannerSrc]);
 
-  // Get additional product images to show in gallery
+  // Get additional product images to show in gallery (from all products)
   const galleryImages = useMemo(() => {
-    if (!product?.images) return [];
     const list: string[] = [];
     if (landingPage?.banner_image) {
       list.push(getImageUrl(landingPage.banner_image));
     }
-    product.images.forEach(img => {
-      const url = getImageUrl(img.image);
-      if (!list.includes(url)) {
-        list.push(url);
-      }
+    products.forEach(p => {
+      (p.images || []).forEach(img => {
+        const url = getImageUrl(img.image);
+        if (!list.includes(url)) {
+          list.push(url);
+        }
+      });
     });
     return list;
-  }, [landingPage, product]);
+  }, [landingPage, products]);
 
   const themeKey = landingPage?.template_type || 'default';
   const styles = themeStyles[themeKey] || themeStyles.default;
@@ -283,7 +295,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
 
 
 
-  // Find product base price and regular price range/defaults
+  // Find product base price (from primary product)
   const basePrice = useMemo(() => {
     if (product) {
       return product.sale_price ?? product.price ?? 0;
@@ -300,17 +312,19 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
 
   const isOnSale = basePrice < regularPrice;
 
-  // Cart operations
+  // Cart operations (supports multiple products via productId)
   const handleAddToCart = (newItem: Omit<CartItem, 'quantity'>) => {
     setCartItems(prev => {
-      const existingIdx = prev.findIndex(item => item.variantId === newItem.variantId);
+      const existingIdx = prev.findIndex(item =>
+        item.productId === newItem.productId && item.variantId === newItem.variantId
+      );
       if (existingIdx > -1) {
         const updated = [...prev];
         updated[existingIdx].quantity += 1;
-        toast.success(`${newItem.name} এর পরিমাণ বাড়ানো হয়েছে!`);
+        toast.success(`${newItem.name} এর পরিমাণ বাড়ানো হয়েছে!`);
         return updated;
       }
-      toast.success(`${newItem.name} কার্টে যোগ করা হয়েছে!`);
+      toast.success(`${newItem.name} কার্টে যোগ করা হয়েছে!`);
       return [...prev, { ...newItem, quantity: 1 }];
     });
     setActiveSizeSelectorColor(null);
@@ -335,73 +349,78 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
     });
   };
 
-  // Group variants by color
-  const colorGroups = useMemo(() => {
-    if (!product) return [];
-    const activeVariants = product.variants?.filter(v => v.is_active) || [];
+  // Build per-product color groups (multi-product aware)
+  const productColorGroups = useMemo(() => {
+    return products.map(prod => {
+      const activeVariants = prod.variants?.filter(v => v.is_active) || [];
 
-    if (activeVariants.length === 0) {
-      return [{
-        colorName: 'Default',
-        image: product.image_url || (product.images?.[0] ? getImageUrl(product.images[0].image) : null),
-        price: product.sale_price ?? product.price ?? 0,
-        regularPrice: product.price ?? 0,
-        variants: [],
-        sizes: []
-      }];
-    }
+      const buildGroups = () => {
+        if (activeVariants.length === 0) {
+          return [{
+            colorName: 'Default',
+            image: prod.image_url || (prod.images?.[0] ? getImageUrl(prod.images[0].image) : null),
+            price: prod.sale_price ?? prod.price ?? 0,
+            regularPrice: prod.price ?? 0,
+            variants: [] as typeof activeVariants,
+            sizes: [] as { value: string; variantId: number; stock: number; inStock: boolean }[]
+          }];
+        }
 
-    const groups: { [key: string]: typeof activeVariants } = {};
-    activeVariants.forEach(v => {
-      const colorAttr = v.attributes?.find(
-        a => a.attribute_slug === 'color' || 
-             a.attribute_name.toLowerCase().includes('color') ||
-             a.attribute_name.includes('কালার')
-      );
-      const colorVal = colorAttr ? colorAttr.value : 'Default';
-      if (!groups[colorVal]) {
-        groups[colorVal] = [];
-      }
-      groups[colorVal].push(v);
-    });
+        const groups: { [key: string]: typeof activeVariants } = {};
+        activeVariants.forEach(v => {
+          // FIX: Backend uses 'attribute_values', and each has an 'attribute' relation
+          const sourceProps = v.attributes || (v as any).attribute_values || [];
+          const colorAttr = sourceProps.find((a: any) => {
+            const slug = a.attribute_slug || a.attribute?.slug || '';
+            const name = a.attribute_name || a.attribute?.name || '';
+            return slug === 'color' || name.toLowerCase().includes('color') || name.includes('কালার');
+          });
+          const colorVal = colorAttr ? colorAttr.value : 'Default';
+          if (!groups[colorVal]) groups[colorVal] = [];
+          groups[colorVal].push(v);
+        });
 
-    return Object.keys(groups).map(colorName => {
-      const variantsInGroup = groups[colorName];
-      const firstVarWithImg = variantsInGroup.find(v => v.image_url);
-      const img = firstVarWithImg?.image_url || product.image_url || (product.images?.[0] ? getImageUrl(product.images[0].image) : null);
+        return Object.keys(groups).map(colorName => {
+          const variantsInGroup = groups[colorName];
+          const firstVarWithImg = variantsInGroup.find(v => v.image_url);
+          const img = firstVarWithImg?.image_url || prod.image_url || (prod.images?.[0] ? getImageUrl(prod.images[0].image) : null);
 
-      const sizes = variantsInGroup.map(v => {
-        const sizeAttr = v.attributes?.find(
-          a => a.attribute_slug === 'size' || 
-               a.attribute_name.toLowerCase().includes('size') ||
-               a.attribute_name.includes('সাইজ')
-        );
-        return sizeAttr ? {
-          value: sizeAttr.value,
-          variantId: v.id,
-          stock: v.stock_quantity,
-          inStock: v.stock_quantity > 0
-        } : null;
-      }).filter(Boolean) as { value: string; variantId: number; stock: number; inStock: boolean }[];
+          const sizes = variantsInGroup.map(v => {
+            const sourceProps = v.attributes || (v as any).attribute_values || [];
+            // Find any attribute that represents a variant option but is NOT the color.
+            // E.g., 'size', 'bra-size', 'waist', 'dimension', etc.
+            const sizeAttr = sourceProps.find((a: any) => {
+              const slug = a.attribute_slug || a.attribute?.slug || '';
+              const name = a.attribute_name || a.attribute?.name || '';
+              const isColor = slug === 'color' || name.toLowerCase().includes('color') || name.includes('কালার');
+              return !isColor;
+            });
+            return sizeAttr ? {
+              value: sizeAttr.value,
+              variantId: v.id,
+              stock: v.stock_quantity,
+              inStock: v.stock_quantity > 0
+            } : null;
+          }).filter(Boolean) as { value: string; variantId: number; stock: number; inStock: boolean }[];
 
-      const uniqueSizes = sizes.filter((s, idx, self) => 
-        self.findIndex(t => t.value === s.value) === idx
-      );
+          const uniqueSizes = sizes.filter((s, idx, self) =>
+            self.findIndex(t => t.value === s.value) === idx
+          );
 
-      const firstVar = variantsInGroup[0];
-      const price = firstVar.discounted_price ?? firstVar.regular_price ?? 0;
-      const rPrice = firstVar.regular_price ?? 0;
+          const firstVar = variantsInGroup[0];
+          const price = firstVar.discounted_price ?? firstVar.regular_price ?? 0;
+          const rPrice = firstVar.regular_price ?? 0;
 
-      return {
-        colorName,
-        image: img,
-        price,
-        regularPrice: rPrice,
-        variants: variantsInGroup,
-        sizes: uniqueSizes
+          return { colorName, image: img, price, regularPrice: rPrice, variants: variantsInGroup, sizes: uniqueSizes };
+        });
       };
+
+      return { product: prod, colorGroups: buildGroups() };
     });
-  }, [product]);
+  }, [products]);
+
+  // Legacy colorGroups for the primary product (kept for compat)
+  const colorGroups = productColorGroups[0]?.colorGroups ?? [];
 
   // Cart calculations
   const subtotal = useMemo(() => {
@@ -424,7 +443,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
       ? (selectedDivision || debouncedAddress.trim().length > 0)
       : true;
 
-    if (!product || totalQuantity === 0 || !hasLocationInput) {
+    if (products.length === 0 || totalQuantity === 0 || !hasLocationInput) {
       setShippingCost(0);
       setSelectedShippingMethodCode('');
       return;
@@ -482,7 +501,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
 
   // Fetch payment methods based on base order amount
   useEffect(() => {
-    if (!product || baseOrderAmount === 0) return;
+    if (products.length === 0 || baseOrderAmount === 0) return;
 
     setLoadingPaymentMethods(true);
     paymentService.getPaymentMethods(baseOrderAmount)
@@ -520,7 +539,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
   const lastAbandonedTrackSignatureRef = useRef('');
 
   const abandonedCartTrackingPayload = useMemo(() => {
-    if (!product || cartItems.length === 0 || isSubmitting || hasCompleted) {
+    if (products.length === 0 || cartItems.length === 0 || isSubmitting || hasCompleted) {
       return null;
     }
 
@@ -577,7 +596,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
       payment_method: selectedPaymentMethodCode || undefined,
       shipping_method: selectedShippingMethodCode || undefined,
       cart_items: cartItems.map((item) => ({
-        product_id: product.id,
+        product_id: item.productId,
         product_name: item.name,
         product_image: item.image,
         variant_id: item.variantId || null,
@@ -648,7 +667,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!product) return;
+    if (products.length === 0) return;
 
     if (cartItems.length === 0) {
       toast.error('অনুগ্রহ করে অন্তত একটি প্রোডাক্ট কার্টে যোগ করুন');
@@ -718,7 +737,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
         order_source: `Landing Page: ${landingPage?.title || slug}`,
         landing_page_slug: slug,
         items: cartItems.map(item => ({
-          product_id: product.id,
+          product_id: item.productId,
           quantity: item.quantity,
           variant_id: item.variantId || undefined
         })),
@@ -775,7 +794,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
     );
   }
 
-  if (error || !landingPage || !product) {
+  if (error || !landingPage || products.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-100 p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center">
@@ -886,16 +905,20 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
         <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-3 leading-tight">
           {landingPage.title}
         </h1>
-        {product.short_description ? (
-          <div 
-            className="text-sm md:text-lg opacity-80 leading-relaxed max-w-2xl mx-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-            dangerouslySetInnerHTML={{ __html: product.short_description }}
-          />
-        ) : (
-          <p className="text-sm md:text-lg opacity-80 max-w-2xl mx-auto">
-            {product.name}
-          </p>
-        )}
+        {products.map(p => (
+          <div key={p.id} className="mb-4">
+            {p.short_description ? (
+              <div 
+                className="text-sm md:text-lg opacity-80 leading-relaxed max-w-2xl mx-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                dangerouslySetInnerHTML={{ __html: p.short_description }}
+              />
+            ) : (
+              <p className="text-sm md:text-lg opacity-80 max-w-2xl mx-auto">
+                {p.name}
+              </p>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Interactive Product Image Slider / Carousel */}
@@ -949,7 +972,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
         </div>
       )}
 
-      {/* Product Selection Section */}
+      {/* Product Selection Section - Multi-Product Aware */}
       <div id="product-selection-section" className="max-w-6xl mx-auto px-4 mt-16">
         <h2 className="text-2xl md:text-3xl font-black text-center mb-2">
           আমাদের প্রোডাক্ট কালেকশন
@@ -957,110 +980,150 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
         <p className="text-center opacity-70 text-sm mb-8">
           পছন্দের প্রোডাক্টের নিচে &quot;অর্ডার করুন&quot; বাটনে ক্লিক করে পরিমাণ সিলেক্ট করুন
         </p>
-        
-        {/* Render color variant grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {colorGroups.map((group) => {
-            const hasSizes = group.sizes.length > 0;
-            const isSizeSelectorOpen = activeSizeSelectorColor === group.colorName;
 
-            return (
-              <div 
-                key={group.colorName} 
-                className={`${styles.card} p-4 rounded-3xl relative overflow-hidden flex flex-col justify-between border-2 border-current/10 hover:border-rose-200 transition-all`}
-              >
-                <div>
-                  {/* Card Image */}
-                  {group.image && (
-                    <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-3 bg-gray-50">
-                      <img
-                        src={group.image}
-                        alt={group.colorName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-
-                  {/* Title */}
-                  <h4 className="font-bold text-lg mb-1">
-                    {product.name} {group.colorName !== 'Default' && `(${group.colorName})`}
-                  </h4>
-
-                  {/* Price */}
-                  <div className="flex items-baseline gap-2 mb-4">
-                    <span className="text-xl font-extrabold text-rose-600">{formatPrice(group.price)}</span>
-                    {group.regularPrice > group.price && (
-                      <span className="text-sm line-through opacity-50">{formatPrice(group.regularPrice)}</span>
-                    )}
+        {/* Render each product as a labeled section with its color/variant grid */}
+        {productColorGroups.map(({ product: prod, colorGroups: groups }) => (
+          <div key={prod.id} className="mb-12">
+            {/* Product title header — only shown when multiple products */}
+            {productColorGroups.length > 1 && (
+              <div className="flex items-center gap-3 mb-5">
+                {(prod.image_url || prod.images?.[0]) && (
+                  <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 border border-current/10">
+                    <img
+                      src={prod.image_url || getImageUrl(prod.images![0].image)}
+                      alt={prod.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                </div>
-
-                {/* Size Selection Overlay / Controls */}
-                <div className="mt-auto relative">
-                  {isSizeSelectorOpen && hasSizes ? (
-                    <div className="space-y-2 py-2 bg-white/95 backdrop-blur-sm rounded-xl text-gray-900">
-                      <span className="text-xs font-bold text-gray-500 uppercase block mb-1">সাইজ সিলেক্ট করুন:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {group.sizes.map((sz) => (
-                          <button
-                            key={sz.variantId}
-                            type="button"
-                            disabled={!sz.inStock}
-                            onClick={() => handleAddToCart({
-                              variantId: sz.variantId,
-                              name: `${product.name} - ${group.colorName} / ${sz.value}`,
-                              price: group.price,
-                              image: group.image,
-                              color: group.colorName !== 'Default' ? group.colorName : null,
-                              size: sz.value
-                            })}
-                            className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition ${
-                              sz.inStock 
-                                ? 'border-gray-300 hover:border-rose-600 hover:bg-rose-50/50 text-gray-800' 
-                                : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed line-through'
-                            }`}
-                          >
-                            {sz.value} {!sz.inStock && '(স্টক নেই)'}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveSizeSelectorColor(null)}
-                        className="text-xs text-rose-500 font-bold underline mt-2 block"
-                      >
-                        বাতিল করুন
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (hasSizes) {
-                          setActiveSizeSelectorColor(group.colorName);
-                        } else {
-                          // Add directly (Free Size)
-                          const v = group.variants[0];
-                          handleAddToCart({
-                            variantId: v ? v.id : null,
-                            name: `${product.name} ${group.colorName !== 'Default' ? `- ${group.colorName}` : ''}`,
-                            price: group.price,
-                            image: group.image,
-                            color: group.colorName !== 'Default' ? group.colorName : null,
-                            size: null
-                          });
-                        }
-                      }}
-                      className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition flex items-center justify-center gap-1.5 ${styles.primaryBtn}`}
-                    >
-                      <i className="bi bi-cart-plus-fill text-base"></i> অর্ডার করুন
-                    </button>
+                )}
+                <div>
+                  <h3 className="font-black text-lg leading-tight">
+                    <Link href={`/products/${prod.slug}`} className="hover:text-rose-600 hover:underline transition-colors block">
+                      {prod.name}
+                    </Link>
+                  </h3>
+                  {prod.short_description && (
+                    <p className="text-xs opacity-60 line-clamp-1"
+                       dangerouslySetInnerHTML={{ __html: prod.short_description.replace(/<[^>]+>/g,'').substring(0,80) }}
+                    />
                   )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groups.map((group) => {
+                const hasSizes = group.sizes.length > 0;
+                const selectorKey = `${prod.id}-${group.colorName}`;
+                const isSizeSelectorOpen = activeSizeSelectorColor === selectorKey;
+
+                return (
+                  <div
+                    key={selectorKey}
+                    className={`${styles.card} p-4 rounded-3xl relative overflow-hidden flex flex-col justify-between border-2 border-current/10 hover:border-rose-200 transition-all`}
+                  >
+                    <div>
+                      {/* Card Image */}
+                      {group.image && (
+                        <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-3 bg-gray-50">
+                          <img
+                            src={group.image}
+                            alt={group.colorName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+
+                      {/* Title */}
+                      <h4 className="font-bold text-lg mb-1">
+                        <Link href={`/products/${prod.slug}`} className="hover:text-rose-600 hover:underline transition-colors block">
+                          {prod.name}
+                        </Link>
+                        {group.colorName !== 'Default' && (
+                          <span className="text-sm opacity-80 mt-0.5 block">
+                            ({group.colorName})
+                          </span>
+                        )}
+                      </h4>
+
+                      {/* Price */}
+                      <div className="flex items-baseline gap-2 mb-4">
+                        <span className="text-xl font-extrabold text-rose-600">{formatPrice(group.price)}</span>
+                        {group.regularPrice > group.price && (
+                          <span className="text-sm line-through opacity-50">{formatPrice(group.regularPrice)}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Size Selection Overlay / Controls */}
+                    <div className="mt-auto relative">
+                      {isSizeSelectorOpen && hasSizes ? (
+                        <div className="space-y-2 py-2 bg-white/95 backdrop-blur-sm rounded-xl text-gray-900">
+                          <span className="text-xs font-bold text-gray-500 uppercase block mb-1">সাইজ সিলেক্ট করুন:</span>
+                          <div className="flex flex-wrap gap-2">
+                            {group.sizes.map((sz) => (
+                              <button
+                                key={sz.variantId}
+                                type="button"
+                                disabled={!sz.inStock}
+                                onClick={() => handleAddToCart({
+                                  productId: prod.id,
+                                  variantId: sz.variantId,
+                                  name: `${prod.name} - ${group.colorName} / ${sz.value}`,
+                                  price: group.price,
+                                  image: group.image,
+                                  color: group.colorName !== 'Default' ? group.colorName : null,
+                                  size: sz.value
+                                })}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition ${
+                                  sz.inStock
+                                    ? 'border-gray-300 hover:border-rose-600 hover:bg-rose-50/50 text-gray-800'
+                                    : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed line-through'
+                                }`}
+                              >
+                                {sz.value} {!sz.inStock && '(স্টক নেই)'}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSizeSelectorColor(null)}
+                            className="text-xs text-rose-500 font-bold underline mt-2 block"
+                          >
+                            বাতিল করুন
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (hasSizes) {
+                              setActiveSizeSelectorColor(selectorKey);
+                            } else {
+                              const v = group.variants[0];
+                              handleAddToCart({
+                                productId: prod.id,
+                                variantId: v ? v.id : null,
+                                name: `${prod.name} ${group.colorName !== 'Default' ? `- ${group.colorName}` : ''}`,
+                                price: group.price,
+                                image: group.image,
+                                color: group.colorName !== 'Default' ? group.colorName : null,
+                                size: null
+                              });
+                            }
+                          }}
+                          className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition flex items-center justify-center gap-1.5 ${styles.primaryBtn}`}
+                        >
+                          <i className="bi bi-cart-plus-fill text-base"></i> অর্ডার করুন
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Two Column Grid details and Cart/Checkout */}
@@ -1169,18 +1232,29 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
             )}
 
             {/* Product description block */}
-            <div className={`${styles.card} p-6 rounded-3xl space-y-4`}>
+            <div className={`${styles.card} p-6 rounded-3xl space-y-6`}>
               <h3 className="text-lg font-bold border-b pb-2">Product Description</h3>
-              {product.description ? (
-                <div 
-                  className="text-sm leading-relaxed space-y-3 opacity-90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                  dangerouslySetInnerHTML={{ __html: product.description }}
-                />
-              ) : (
-                <div className="text-sm leading-relaxed space-y-3 opacity-90">
-                  No detailed description available.
+              {products.map((p) => (
+                <div key={p.id} className="space-y-2">
+                  {products.length > 1 && (
+                    <h4 className="font-bold text-base">
+                      <Link href={`/products/${p.slug}`} className="hover:text-rose-600 hover:underline transition-colors">
+                        {p.name}
+                      </Link>
+                    </h4>
+                  )}
+                  {p.description ? (
+                    <div 
+                      className="text-sm leading-relaxed space-y-3 opacity-90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                      dangerouslySetInnerHTML={{ __html: p.description }}
+                    />
+                  ) : (
+                    <div className="text-sm leading-relaxed space-y-3 opacity-90">
+                      No detailed description available.
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
 
             {/* Testimonials Review Feed */}
@@ -1547,7 +1621,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
 
       {/* Footer copyright */}
       <div className={`mt-16 border-t border-gray-300/10 pt-8 text-center text-xs opacity-60`}>
-        <p>&copy; {new Date().getFullYear()} {product.name}. All Rights Reserved.</p>
+        <p>&copy; {new Date().getFullYear()} {landingPage.title}. All Rights Reserved.</p>
         <p className="mt-1">Cash on Delivery across Bangladesh. For support contact merchant.</p>
       </div>
 
