@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "clean": "rm -rf .next out tsconfig.tsbuildinfo",
-    "dev": "next dev -p $(node -e \"try { console.log(process.env.PORT || require('fs').readFileSync('.env','utf8').match(/^PORT=([0-9]+)/m)?.[1] || 3000) } catch { console.log(process.env.PORT || 3000) }\")",
+    "dev": "next dev",
     "dev:turbo": "next dev --turbopack -p $(node -e \"try { console.log(process.env.PORT || require('fs').readFileSync('.env','utf8').match(/^PORT=([0-9]+)/m)?.[1] || 3000) } catch { console.log(process.env.PORT || 3000) }\")",
     "build": "next build",
     "start": "next start -p $(node -e \"try { console.log(process.env.PORT || require('fs').readFileSync('.env','utf8').match(/^PORT=([0-9]+)/m)?.[1] || 3000) } catch { console.log(process.env.PORT || 3000) }\")",
