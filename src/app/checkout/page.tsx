@@ -471,6 +471,8 @@ export default function CheckoutPage() {
   const [loyaltyDiscountPercentage, setLoyaltyDiscountPercentage] = useState<number>(0);
   const [loyaltyGroupName, setLoyaltyGroupName] = useState<string>('');
   const [loyaltyAnnouncedPhone, setLoyaltyAnnouncedPhone] = useState<string>('');
+  const [showLoyaltyPopup, setShowLoyaltyPopup] = useState<boolean>(false);
+  const [loyaltyPopupMessage, setLoyaltyPopupMessage] = useState<string>('');
 
   const checkoutDisabledByConfig = checkoutSettings?.checkout_form_enabled === false;
 
@@ -566,7 +568,8 @@ export default function CheckoutPage() {
           setLoyaltyGroupName(data.data.group_name);
           setLoyaltyDiscountPercentage(Number(data.data.discount_percentage));
           if (phone !== loyaltyAnnouncedPhone) {
-            toast.success(data.message, { duration: 6000, icon: '🎉' });
+            setLoyaltyPopupMessage(data.message);
+            setShowLoyaltyPopup(true);
             setLoyaltyAnnouncedPhone(phone);
           }
         } else {
@@ -1725,7 +1728,7 @@ export default function CheckoutPage() {
           <img
             src={resolvePaymentIconImageSrc(icon)}
             alt={`${method.name} icon`}
-            className="h-5 w-5 object-contain"
+            className="h-8 w-auto max-w-[80px] object-contain rounded"
             loading="lazy"
           />
         );
@@ -1733,16 +1736,16 @@ export default function CheckoutPage() {
 
       const bootstrapIconClass = resolveBootstrapIconClass(icon);
       if (bootstrapIconClass) {
-        return <i className={`${bootstrapIconClass} text-lg ${iconTone}`} aria-hidden="true" />;
+        return <i className={`${bootstrapIconClass} text-2xl ${iconTone}`} aria-hidden="true" />;
       }
 
       if (icon.length <= 3) {
-        return <span className={`text-sm font-semibold ${iconTone}`}>{icon}</span>;
+        return <span className={`text-base font-bold ${iconTone}`}>{icon}</span>;
       }
     }
 
     return (
-      <svg className={`w-6 h-6 ${iconTone}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className={`w-8 h-8 ${iconTone}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
       </svg>
     );
@@ -1888,6 +1891,37 @@ export default function CheckoutPage() {
 
   return (
     <div className="bg-slate-100/70 w-full overflow-x-hidden">
+      {/* Loyalty Welcome Offer Modal Popup (Centered on Mobile & PC) */}
+      {showLoyaltyPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all duration-300 scale-100 flex flex-col items-center p-6 text-center border border-gray-100 animate-fade-in">
+            {/* Icon */}
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4 text-green-600 text-3xl">
+              🎉
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Welcome Offer!
+            </h3>
+            
+            {/* Message */}
+            <p className="text-gray-600 text-sm leading-relaxed mb-6 whitespace-pre-line font-semibold">
+              {loyaltyPopupMessage}
+            </p>
+            
+            {/* Action Button */}
+            <button
+              type="button"
+              onClick={() => setShowLoyaltyPopup(false)}
+              className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold shadow-lg shadow-green-600/20 hover:shadow-green-700/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+            >
+              ধন্যবাদ
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-2 sm:px-4 py-6 sm:py-10 max-w-full">
         <div className="mb-6 relative">
           <div className="mb-4 flex sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2 sm:mb-0">
@@ -2112,17 +2146,9 @@ export default function CheckoutPage() {
                           key={method.code}
                           className="flex items-center justify-between py-3 cursor-pointer group"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="relative flex items-center justify-center w-5 h-5">
-                              <input
-                                type="radio"
-                                name="payment_method"
-                                value={method.code}
-                                checked={isSelected}
-                                onChange={() => setSelectedPaymentMethod(method.code)}
-                                className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-300 checked:border-accent-600 cursor-pointer transition-colors"
-                              />
-                              <div className="absolute w-2.5 h-2.5 rounded-full bg-accent-600 scale-0 peer-checked:scale-100 transition-transform pointer-events-none"></div>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex-shrink-0 h-10 w-16 flex items-center justify-start transition-all">
+                              {renderPaymentMethodIcon(method, isSelected)}
                             </div>
                             <div className="flex flex-col min-w-0">
                               <span className="font-semibold text-gray-900 text-sm truncate">{method.name}</span>
@@ -2132,9 +2158,9 @@ export default function CheckoutPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 pl-3">
+                          <div className="flex items-center gap-3 pl-3 shrink-0">
                             {extraCharge && extraCharge.calculated > 0 && (
-                              <div className="text-right flex flex-col">
+                              <div className="text-right flex flex-col mr-1">
                                 <span className="text-xs font-medium text-accent-700">
                                   +{extraCharge.type === 'percentage'
                                     ? `${extraCharge.value}%`
@@ -2145,8 +2171,16 @@ export default function CheckoutPage() {
                                 )}
                               </div>
                             )}
-                            <div className="flex-shrink-0 h-6 flex items-center justify-center transition-all">
-                              {renderPaymentMethodIcon(method, isSelected)}
+                            <div className="relative flex items-center justify-center w-5 h-5">
+                              <input
+                                type="radio"
+                                name="payment_method"
+                                value={method.code}
+                                checked={isSelected}
+                                onChange={() => setSelectedPaymentMethod(method.code)}
+                                className="peer appearance-none w-5 h-5 rounded-full border-2 border-gray-300 checked:border-accent-600 cursor-pointer transition-colors"
+                              />
+                              <div className="absolute w-2.5 h-2.5 rounded-full bg-accent-600 scale-0 peer-checked:scale-100 transition-transform pointer-events-none"></div>
                             </div>
                           </div>
                         </label>

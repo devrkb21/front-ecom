@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { Product, Category } from '@/types';
 import { ProductCard } from '@/components/products/ProductCard';
 import { getImageUrl } from '@/utils';
+import { HeroSlider, type HeroSlide } from '@/components/home/HeroSlider';
 import {
   getProductGridClassName,
   normalizeDesktopColumns,
@@ -24,6 +25,7 @@ interface HeroSettings {
   button_link?: string;
   image?: string;
   enabled?: boolean;
+  banners?: HeroSlide[] | string;
 }
 
 interface BannerSettings {
@@ -214,11 +216,35 @@ export default async function HomePage() {
 
   // Hero content — backend settings with defaults
   const heroEnabled = heroSettings?.enabled !== false;
-  const heroTitle = heroSettings?.title || 'New Collection';
-  const heroSubtitle = heroSettings?.subtitle || 'Discover our latest arrivals';
-  const heroButtonText = heroSettings?.button_text || 'Shop Now';
-  const heroButtonLink = heroSettings?.button_link || '/products';
-  const heroImage = heroSettings?.image || '';
+  
+  // Parse hero banners list
+  let bannerSlides: HeroSlide[] = [];
+  if (heroSettings?.banners) {
+    if (typeof heroSettings.banners === 'string') {
+      try {
+        bannerSlides = JSON.parse(heroSettings.banners);
+      } catch (e) {
+        bannerSlides = [];
+      }
+    } else if (Array.isArray(heroSettings.banners)) {
+      bannerSlides = heroSettings.banners;
+    }
+  }
+
+  // Fallback to legacy single banner fields if banners is empty
+  if (bannerSlides.length === 0) {
+    bannerSlides = [{
+      title: heroSettings?.title || 'New Collection',
+      subtitle: heroSettings?.subtitle || 'Discover our latest arrivals',
+      image: heroSettings?.image || '',
+      button_text: heroSettings?.button_text || 'Shop Now',
+      button_link: heroSettings?.button_link || '/products',
+      enabled: heroEnabled
+    }];
+  }
+
+  // Filter active slides
+  const activeSlides = bannerSlides.filter(slide => slide.enabled !== false);
 
   // Promo banner
   const promoEnabled = bannerSettings?.promo_enabled === true;
@@ -245,48 +271,9 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* Hero Banner — Full width */}
-      {heroEnabled && (
-        <section className="relative w-full overflow-hidden">
-          <div className="relative h-[300px] sm:h-[340px] md:h-[420px] lg:h-[500px] bg-gradient-to-r from-accent-700 via-accent-600 to-accent-500">
-            {heroImage ? (
-              <>
-                <div className="absolute inset-0">
-                  <Image
-                    src={getImageUrl(heroImage)}
-                    alt={heroTitle}
-                    fill
-                    className="object-cover"
-                    sizes="100vw"
-                    priority
-                  />
-                </div>
-                <div className="absolute inset-0 bg-black/40 md:bg-black/25" />
-              </>
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-r from-accent-700 via-accent-600 to-accent-500" />
-            )}
-
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center text-white px-4">
-                <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 text-balance">
-                  {heroTitle}
-                </h1>
-                {heroSubtitle && (
-                  <p className="text-sm md:text-lg text-white/90 mb-6 max-w-2xl mx-auto text-balance">
-                    {heroSubtitle}
-                  </p>
-                )}
-                <Link
-                  href={heroButtonLink}
-                  className="inline-flex px-8 py-3 bg-white text-gray-900 font-medium text-sm rounded-md hover:bg-gray-100 transition-colors"
-                >
-                  {heroButtonText}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
+      {/* Hero Banner — Sliding Carousel */}
+      {heroEnabled && activeSlides.length > 0 && (
+        <HeroSlider slides={activeSlides} />
       )}
 
       {/* Collection Sections — One per category */}

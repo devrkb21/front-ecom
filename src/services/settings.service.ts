@@ -130,6 +130,18 @@ export interface SiteVerificationEntry {
   meta_name?: string;
 }
 
+export interface LiveChatSettings {
+  live_chat_enabled: boolean;
+  live_chat_whatsapp_enabled: boolean;
+  live_chat_whatsapp_number: string;
+  live_chat_whatsapp_message: string;
+  live_chat_messenger_enabled: boolean;
+  live_chat_messenger_link: string;
+  live_chat_button_position: 'bottom-right' | 'bottom-left';
+  live_chat_welcome_text: string;
+  live_chat_button_color: string;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 };
@@ -357,6 +369,27 @@ const normalizeTrackingIntegrations = (payload: unknown): TrackingIntegrationsSe
   };
 };
 
+const normalizeLiveChatSettings = (payload: unknown): LiveChatSettings => {
+  const root = unwrapEnvelope<unknown>(payload);
+  const source = isRecord(root) ? root : {};
+
+  const positionRaw = toText(source.live_chat_button_position).toLowerCase();
+  const position: LiveChatSettings['live_chat_button_position'] =
+    positionRaw === 'bottom-left' ? 'bottom-left' : 'bottom-right';
+
+  return {
+    live_chat_enabled: toBoolean(source.live_chat_enabled, false),
+    live_chat_whatsapp_enabled: toBoolean(source.live_chat_whatsapp_enabled, false),
+    live_chat_whatsapp_number: toText(source.live_chat_whatsapp_number),
+    live_chat_whatsapp_message: toText(source.live_chat_whatsapp_message) || 'Hello! I need help.',
+    live_chat_messenger_enabled: toBoolean(source.live_chat_messenger_enabled, false),
+    live_chat_messenger_link: toText(source.live_chat_messenger_link),
+    live_chat_button_position: position,
+    live_chat_welcome_text: toText(source.live_chat_welcome_text) || 'Chat with us!',
+    live_chat_button_color: toText(source.live_chat_button_color) || '#7C3AED',
+  };
+};
+
 export const settingsService = {
   async getHero(): Promise<HeroSettings> {
     const payload = await internalGet<unknown>('settings/hero');
@@ -398,5 +431,10 @@ export const settingsService = {
   async getGroup(group: string): Promise<Record<string, string | boolean | number>> {
     const payload = await internalGet<unknown>(`settings/${group}`);
     return unwrapEnvelope<Record<string, string | boolean | number>>(payload);
+  },
+
+  async getLiveChat(): Promise<LiveChatSettings> {
+    const payload = await internalGet<unknown>('settings/integration');
+    return normalizeLiveChatSettings(payload);
   },
 };

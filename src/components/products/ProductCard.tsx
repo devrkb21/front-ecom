@@ -157,7 +157,7 @@ export function ProductCard({ product }: ProductCardProps) {
     <Link href={`/products/${product.slug}`} className="group block">
       <div className="relative rounded-[0.6rem] overflow-hidden">
         {/* Image */}
-        <div className="relative aspect-[4/5] sm:aspect-square overflow-hidden bg-gray-100">
+        <div className="relative aspect-square overflow-hidden bg-gray-100">
           <Image
             src={getImageUrl(primaryImageUrl)}
             alt={imageAlt}

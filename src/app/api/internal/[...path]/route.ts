@@ -180,7 +180,9 @@ async function handleProxy(request: NextRequest, pathSegments: string[], method:
     const bodyText = await upstream.text();
     const contentType = upstream.headers.get('content-type') || 'application/json';
 
-    if (method === 'GET' && getCacheKey) {
+    const isSettingsPath = normalizedPath === 'settings' || normalizedPath.startsWith('settings/');
+
+    if (method === 'GET' && getCacheKey && !isSettingsPath) {
       const shouldServeStale = upstream.status === 408 || upstream.status === 429 || upstream.status >= 500;
       if (upstream.ok) {
         setCachedGetResponse(getCacheKey, upstream.status, bodyText, contentType);
@@ -193,7 +195,9 @@ async function handleProxy(request: NextRequest, pathSegments: string[], method:
       status: upstream.status,
       headers: {
         'content-type': contentType,
-        'Cache-Control': method === 'GET' ? SHARED_GET_CACHE_CONTROL : NO_STORE_CACHE_CONTROL,
+        'Cache-Control': method === 'GET'
+          ? (isSettingsPath ? NO_STORE_CACHE_CONTROL : SHARED_GET_CACHE_CONTROL)
+          : NO_STORE_CACHE_CONTROL,
       },
     });
   } catch (error) {

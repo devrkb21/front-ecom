@@ -16,13 +16,22 @@ const TrackingIntegrations = dynamic(
   }
 );
 
+const LiveChatWidget = dynamic(
+  () => import('@/components/integrations/LiveChatWidget'),
+  {
+    ssr: false,
+  }
+);
+
 export function DeferredClientWidgets() {
   return (
     <>
       <SideCartDrawer />
       <TrackingIntegrations />
+      <LiveChatWidget />
     </>
   );
 }
 
 export default DeferredClientWidgets;
+

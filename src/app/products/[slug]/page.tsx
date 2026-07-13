@@ -809,7 +809,7 @@ export default function ProductPage() {
               </div>
             )}
 
-            <div className="rounded-lg border border-gray-100 bg-[#f8f8f8] p-2 md:p-4">
+            <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
               <div className="relative mx-auto aspect-square max-w-[520px] overflow-hidden rounded-md">
                 <div
                   className="relative h-full w-full cursor-zoom-in"
@@ -821,7 +821,7 @@ export default function ProductPage() {
                     src={getImageUrl(currentImageUrl)}
                     alt={product.name}
                     fill
-                    className="object-contain transition-transform duration-200 ease-out"
+                    className="object-cover transition-transform duration-200 ease-out"
                     style={{
                       transform: isZoomActive ? 'scale(1.9)' : 'scale(1)',
                       transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
