@@ -1894,7 +1894,18 @@ export default function CheckoutPage() {
       {/* Loyalty Welcome Offer Modal Popup (Centered on Mobile & PC) */}
       {showLoyaltyPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all duration-300 scale-100 flex flex-col items-center p-6 text-center border border-gray-100 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all duration-300 scale-100 flex flex-col items-center p-6 text-center border border-gray-100 animate-fade-in relative">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowLoyaltyPopup(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100 focus:outline-none"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             {/* Icon */}
             <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-4 text-green-600 text-3xl">
               🎉
