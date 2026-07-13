@@ -174,9 +174,9 @@ export function Header() {
           return;
         }
 
-        const configuredSiteName = typeof generalSettings.site_title === 'string'
-          ? generalSettings.site_title.trim()
-          : '';
+        const configuredSiteName = typeof generalSettings.site_name === 'string' && generalSettings.site_name.trim() !== ''
+          ? generalSettings.site_name.trim()
+          : (typeof generalSettings.site_title === 'string' ? generalSettings.site_title.trim() : '');
         const configuredLogo = typeof generalSettings.site_logo === 'string'
           ? generalSettings.site_logo.trim()
           : '';

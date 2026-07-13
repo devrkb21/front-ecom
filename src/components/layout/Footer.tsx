@@ -35,7 +35,7 @@ export async function Footer() {
     fetchGeneralSettings(),
     fetchPages()
   ]);
-  const siteName = general?.site_title || 'Our Store';
+  const siteName = general?.site_name || general?.site_title || 'Our Store';
 
   return (
     <footer className="bg-white border-t border-gray-200">

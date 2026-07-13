@@ -166,7 +166,7 @@ const fetchVerificationMetadata = async (): Promise<Metadata['verification'] | u
   }
 };
 
-const fetchGeneralMetadata = async (): Promise<{ site_favicon?: string; site_title?: string; site_description?: string } | undefined> => {
+const fetchGeneralMetadata = async (): Promise<{ site_favicon?: string; site_title?: string; site_description?: string; site_name?: string } | undefined> => {
   const apiUrl = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL || '');
   if (!apiUrl) {
     return undefined;
@@ -189,6 +189,7 @@ const fetchGeneralMetadata = async (): Promise<{ site_favicon?: string; site_tit
     return {
       site_favicon: payload?.data?.site_favicon,
       site_title: payload?.data?.site_title,
+      site_name: payload?.data?.site_name,
       site_description: payload?.data?.site_description,
     };
   } catch {
@@ -237,8 +238,9 @@ export async function generateMetadata(): Promise<Metadata> {
     metadata.verification = verification;
   }
 
-  if (general?.site_title) {
-    metadata.title = general.site_title;
+  const titleVal = general?.site_title || general?.site_name;
+  if (titleVal) {
+    metadata.title = titleVal;
   }
 
   if (general?.site_description) {
