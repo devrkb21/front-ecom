@@ -6,6 +6,7 @@ export { Badge } from './Badge';
 export { EmptyState } from './EmptyState';
 export { Spinner, LoadingPage } from './Spinner';
 export { VariantSelector } from './VariantSelector';
+export { SmartImage } from './SmartImage';
 export { 
   Skeleton, 
   ProductCardSkeleton, 

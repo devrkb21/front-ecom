@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getImageUrl } from '@/utils';
+import { SmartImage } from '@/components/ui';
 
 export interface HeroSlide {
   title?: string;
@@ -76,7 +76,7 @@ export function HeroSlider({ slides }: HeroSliderProps) {
               {slide.image ? (
                 <>
                   <div className="absolute inset-0">
-                    <Image
+                    <SmartImage
                       src={getImageUrl(slide.image)}
                       alt={slide.title || 'Promo Banner'}
                       fill

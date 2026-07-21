@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
 import { CartItem as CartItemType } from '@/types';
-import { Button } from '@/components/ui';
+import { Button, SmartImage } from '@/components/ui';
 import { useCartStore } from '@/stores';
 import { getImageUrl, formatPrice } from '@/utils';
 
@@ -34,7 +33,8 @@ export function CartItem({ item }: CartItemProps) {
   };
 
   // Get variant name if present
-  const variantText = item.variant?.attributes?.length
+  const variantText =
+    item.variant?.attributes && item.variant.attributes.length > 0
     ? item.variant.attributes
         .map((attr) => {
           const name = (attr.attribute_name || '').trim();
@@ -49,7 +49,7 @@ export function CartItem({ item }: CartItemProps) {
   return (
     <div className="flex items-start gap-2 sm:gap-4 p-2.5 sm:p-4 bg-white rounded-lg shadow-sm border border-gray-100 max-w-full overflow-hidden">
       <div className="relative w-14 h-14 sm:w-20 sm:h-20 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 border border-gray-50">
-        <Image
+        <SmartImage
           src={getImageUrl(displayImage)}
           alt={item.product.name}
           fill

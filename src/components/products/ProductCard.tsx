@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Product } from '@/types';
 import { getImageUrl, formatPrice } from '@/utils';
 import { useMemo, useState } from 'react';
 import { useAuthStore, useCartStore, useWishlistStore } from '@/stores';
+import { SmartImage } from '@/components/ui';
 
 interface ProductCardProps {
   product: Product;
@@ -158,7 +158,7 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="relative rounded-[0.6rem] overflow-hidden">
         {/* Image */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
-          <Image
+          <SmartImage
             src={getImageUrl(primaryImageUrl)}
             alt={imageAlt}
             fill
@@ -167,7 +167,7 @@ export function ProductCard({ product }: ProductCardProps) {
           />
 
           {secondaryImageUrl && (
-            <Image
+            <SmartImage
               src={getImageUrl(secondaryImageUrl)}
               alt={imageAlt}
               fill

@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { Category } from '@/types';
 import { getImageUrl } from '@/utils';
+import { SmartImage } from '@/components/ui';
 
 interface CategoryCardProps {
   category: Category;
@@ -15,7 +15,7 @@ export function CategoryCard({ category }: CategoryCardProps) {
       <div className="relative overflow-hidden">
         <div className="aspect-square relative overflow-hidden bg-gray-100">
           {category.image ? (
-            <Image
+            <SmartImage
               src={getImageUrl(category.image)}
               alt={category.name}
               fill

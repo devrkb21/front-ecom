@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import type { Product } from '@/types';
 import { formatPrice, getImageUrl } from '@/utils';
+import { SmartImage } from '@/components/ui';
 
 interface HomeProductCardProps {
   product: Product;
@@ -78,7 +78,7 @@ export function HomeProductCard({ product }: HomeProductCardProps) {
     <Link href={`/products/${product.slug}`} className="group block">
       <article className="overflow-hidden rounded-[0.6rem] border border-gray-100 bg-white">
         <div className="relative aspect-[4/5] sm:aspect-square overflow-hidden bg-gray-100">
-          <Image
+          <SmartImage
             src={getImageUrl(imageUrl)}
             alt={imageAlt}
             fill

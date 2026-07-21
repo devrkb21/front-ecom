@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Product, ProductImage, ProductVariant, Review, ReviewSummary } from '@/types';
 import { api, productService, settingsService, type GeneralSettings } from '@/services';
 import { useAuthStore, useCartStore } from '@/stores';
-import { Button, ProductDetailsSkeleton, EmptyState, VariantSelector } from '@/components/ui';
+import { Button, ProductDetailsSkeleton, EmptyState, VariantSelector, SmartImage } from '@/components/ui';
 import { ProductCard } from '@/components/products';
 import { getImageUrl, formatPrice, trackViewContent } from '@/utils';
 import { getProductGridClassName } from '@/utils/product-grid';
@@ -797,7 +797,7 @@ export default function ProductPage() {
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <Image
+                    <SmartImage
                       src={getImageUrl(image.url)}
                       alt={`${product.name} image ${index + 1}`}
                       fill
@@ -817,7 +817,7 @@ export default function ProductPage() {
                   onMouseMove={handleMainImageMouseMove}
                   onMouseLeave={resetZoomState}
                 >
-                  <Image
+                  <SmartImage
                     src={getImageUrl(currentImageUrl)}
                     alt={product.name}
                     fill

@@ -21,15 +21,11 @@ export function formatPrice(price: string | number | undefined | null): string {
 export function getImageUrl(url?: string): string {
   if (!url) return '/placeholder-product.svg';
 
-  // Automatically rewrite png/jpg/jpeg/gif/bmp extensions to webp
-  // but keep original query parameters.
-  let processedUrl = url;
-  const extRegex = /\.(png|jpe?g|gif|bmp)(\?.*)?$/i;
-  if (extRegex.test(url)) {
-    processedUrl = url.replace(extRegex, '.webp$2');
-  }
-
-  if (processedUrl.startsWith('http')) return processedUrl;
+  // The backend already stores and serves WebP URLs from the media library.
+  // Do NOT blindly rewrite extensions — if a .webp twin does not exist on the
+  // server, doing so would cause a 404 / broken image.
+  // Just resolve relative paths against the API origin.
+  if (url.startsWith('http')) return url;
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
   const origin = apiUrl
@@ -39,10 +35,10 @@ export function getImageUrl(url?: string): string {
     .replace(/\/api$/i, '');
 
   if (!origin) {
-    return processedUrl.startsWith('/') ? processedUrl : `/${processedUrl}`;
+    return url.startsWith('/') ? url : `/${url}`;
   }
 
-  return `${origin}${processedUrl.startsWith('/') ? processedUrl : `/${processedUrl}`}`;
+  return `${origin}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
 export function truncateText(text: string, maxLength: number): string {

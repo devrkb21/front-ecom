@@ -11,7 +11,7 @@ import type { Address, BdLocationItem } from '@/services/address.service';
 import { CartItem, OrderSummary, PaymentMethod, ShippingMethod } from '@/types';
 import type { CreateOrderData } from '@/types/order';
 import { FreeShippingProgress } from '@/components/cart';
-import { Button, Input, EmptyState, LoadingPage, SearchableSelect } from '@/components/ui';
+import { Button, Input, EmptyState, LoadingPage, SearchableSelect, SmartImage } from '@/components/ui';
 import { getImageUrl, formatPrice, trackInitiateCheckout } from '@/utils';
 import toast from 'react-hot-toast';
 import axios, { AxiosError } from 'axios';
@@ -2016,7 +2016,7 @@ export default function CheckoutPage() {
                     return (
                       <div key={`preview-${item.id}`} className="flex items-center gap-2 sm:gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 sm:p-3 max-w-full overflow-hidden">
                         <div className="relative h-12 w-12 sm:h-14 sm:w-14 overflow-hidden rounded-lg bg-white shrink-0">
-                          <Image
+                          <SmartImage
                             src={getImageUrl(productImage)}
                             alt={item.product.name}
                             fill
