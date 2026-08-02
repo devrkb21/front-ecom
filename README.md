@@ -54,10 +54,10 @@ This frontend application is a headless eCommerce storefront that powers the cus
 | Total Source Files (TS/TSX) | 118 |
 | Pages (App Router) | 36 |
 | Components | 29 |
-| Services | 16 |
+| Services | 17 |
 | Zustand Stores | 3 |
 | TypeScript Type Modules | 9 |
-| Utility Modules | 4 |
+| Utility Modules | 5 |
 | Next.js API Routes | 3 proxy routes |
 | Public Assets | 2 |
 
@@ -66,7 +66,8 @@ This frontend application is a headless eCommerce storefront that powers the cus
 ## Key Highlights
 
 - 🏗️ **Next.js 16 App Router** — Full server/client component architecture with React 19
-- 🔒 **Secure Proxy Architecture** — Three-layer API proxy (internal, public, direct) ensures secrets stay server-side
+- 🔒 **Secure Proxy Architecture** — Three-layer API proxy (internal, public, direct) ensures secrets stay server-side, with path-traversal guards on every catch-all route
+- 🛡️ **Server-Side HTML/CSS Sanitization** — All `dangerouslySetInnerHTML` usage (CMS pages, product/landing page rich content) is passed through `sanitizeHtml()`/`sanitizeCss()` before rendering to prevent stored XSS from admin-authored content
 - 🛒 **Guest + Authenticated Checkout** — Full checkout flow supporting both guest and registered users
 - 📱 **Responsive Design** — Mobile-first with configurable product grid columns (1–6 columns)
 - 🖼️ **Automatic WebP Conversion** — `getImageUrl()` utility auto-rewrites image extensions to `.webp`
@@ -143,6 +144,13 @@ Browser (Client)
 | `/api/proxy/[...path]` | Authenticated user actions (cart, profile, orders) | Client's Bearer token forwarded through proxy |
 | `/api/public/[...path]` | Public endpoints (auth, checkout, tracking) | No secret needed; optional Bearer token passthrough |
 | `/api/public/orders` | Order placement (special handler) | Server injects `X-Internal-Secret` for guest order support |
+
+#### Hardening Notes (Applied)
+
+- **Path-traversal guards**: every catch-all proxy route (`internal`, `proxy`, `public`) rejects any path segment that decodes to `.` or `..` before it's joined into the upstream URL, closing off attempts to escape the allowed endpoint prefixes.
+- **Allowlisted paths only**: `/api/internal/*` only forwards to an explicit prefix allowlist (`categories`, `products`, `settings`, `flash-sales`, etc.) — an unlisted path returns `404` rather than being forwarded blind.
+- **Secrets never reach the client bundle**: `INTERNAL_API_SECRET` is read from `process.env` inside a Route Handler (server-only code), never from a `NEXT_PUBLIC_*` variable, so it cannot leak into client JS.
+- **Stored-XSS defense-in-depth**: all `dangerouslySetInnerHTML` call sites run content through [`sanitizeHtml()`/`sanitizeCss()`](#sanitizets--htmlcss-sanitization) first.
 
 ### Data Flow
 
@@ -305,7 +313,8 @@ frontend/
     │   ├── address.service.ts            # Address CRUD + BD locations (5KB)
     │   ├── abandoned-cart.service.ts      # Checkout progress tracking
     │   ├── page.service.ts               # CMS page content
-    │   └── landing-page.service.ts       # Landing page data (1KB)
+    │   ├── landing-page.service.ts       # Landing page data (1KB)
+    │   └── server-content.service.ts     # Server-safe content fetching for RSC contexts (e.g. Footer) that can't use client-only hooks
     ├── stores/                           # 3 Zustand state stores
     │   ├── index.ts                      # Store barrel exports
     │   ├── auth.store.ts                 # Auth state with persistence (4KB)
@@ -321,11 +330,12 @@ frontend/
     │   ├── order.ts                      # Order, OrderItem, OrderTracking types (4KB)
     │   ├── payment.ts                    # Payment and PaymentGateway types (2KB)
     │   └── shipping.ts                   # ShippingMethod and rate types (1KB)
-    └── utils/                            # 4 utility modules
+    └── utils/                            # 5 utility modules
         ├── index.ts                      # Utility barrel exports
         ├── helpers.ts                    # cn(), formatPrice(), getImageUrl(), truncateText()
         ├── product-grid.ts              # Product grid column configuration (2KB)
-        └── tracking.ts                  # Multi-platform analytics tracking (10KB)
+        ├── tracking.ts                  # Multi-platform analytics tracking (10KB)
+        └── sanitize.ts                   # sanitizeHtml()/sanitizeCss() — strips scripts, event handlers, and dangerous CSS before dangerouslySetInnerHTML
 ```
 
 ---
@@ -483,7 +493,7 @@ frontend/
 
 ## Services Layer
 
-16 service modules handling all API communication:
+17 service modules handling all API communication:
 
 ### Core Services
 
@@ -509,6 +519,7 @@ frontend/
 | `abandonedCartService` | `abandoned-cart.service.ts` | Track checkout progress, mark recovered | 2KB |
 | `pageService` | `page.service.ts` | Fetch CMS page by slug | 1KB |
 | `landingPageService` | `landing-page.service.ts` | Fetch landing page data by slug | 1KB |
+| `serverContentService` | `server-content.service.ts` | Server Component-safe data fetching (used by `Footer` and other server-rendered pieces that can't rely on client-side stores) | — |
 
 ### API Client Details (`api.ts`)
 
@@ -625,6 +636,15 @@ The largest store — manages the full shopping cart lifecycle:
 | `getProductGridClassName(desktop, mobile)` | Generate Tailwind grid classes with spacing options |
 | `DEFAULT_PRODUCT_GRID_COLUMNS_DESKTOP` | Default: 5 columns |
 | `DEFAULT_PRODUCT_GRID_COLUMNS_MOBILE` | Default: 2 columns |
+
+### `sanitize.ts` — HTML/CSS Sanitization
+
+| Function | Description |
+|---|---|
+| `sanitizeHtml(html)` | Strips `<script>` tags, inline event handler attributes (`onclick`, `onerror`, etc.), and `javascript:`/`data:text/html` URIs from a raw HTML string before it's passed to `dangerouslySetInnerHTML`. Used everywhere the backend can return admin-authored rich content: CMS pages, product/landing page descriptions, static legal pages. |
+| `sanitizeCss(css)` | Strips `expression()`, `javascript:` URIs, and `@import` from raw CSS strings before injection into `<style>` blocks. |
+
+Applying this at render time is defense-in-depth — it assumes the backend response could theoretically be compromised or an admin account misused, and refuses to trust HTML/CSS coming from the API as safe to inject verbatim.
 
 ### `tracking.ts` — Multi-Platform Analytics (10KB)
 
@@ -925,6 +945,17 @@ npm run start
 - [ ] Enable HTTPS on the reverse proxy
 - [ ] Set up process manager (PM2) for auto-restart
 - [ ] Verify all tracking integrations are configured in admin panel
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Only the header/footer render — products, categories, settings, everything data-driven is blank | No `.env.local` file, or `INTERNAL_API_SECRET` isn't set. `/api/internal/[...path]` returns HTTP 500 (`"Internal API secret is not configured."`) for every request when the secret is missing, and nearly every storefront section reads through that proxy. The header still renders because it doesn't depend on it. | Create `.env.local` from `.env.example` and set `NEXT_PUBLIC_API_URL` + `INTERNAL_API_SECRET`. The secret must match the backend's `INTERNAL_API_SECRET` exactly. |
+| Products/categories load in `curl` against the backend directly but not through the frontend | The frontend's `INTERNAL_API_SECRET` doesn't match the backend's, or `NEXT_PUBLIC_API_URL` points at the wrong host/port. | Compare both `.env`/`.env.local` files side by side; restart `npm run dev` after changing env vars (Next.js only reads them at server start). |
+| `Cannot find module 'playwright'` (or similar) when running a one-off Node script against this app | Node's CJS resolution walks up from the script's own directory, not the current working directory — a script outside `frontend/` won't see `frontend/node_modules`. | Run `npm install --no-save <package>` inside `frontend/` and place the script directly inside the project directory before running it. |
+| Build succeeds but ESLint reports dozens of pre-existing warnings/errors unrelated to your change | This is known lint debt, not a regression — verified by stashing changes and re-linting the base branch (same error count with/without a given change set). | Only worry about lint errors in files your diff touches; don't try to fix unrelated pre-existing violations in the same PR. |
 
 ---
 
