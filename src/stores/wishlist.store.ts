@@ -45,8 +45,9 @@ export const useWishlistStore = create<WishlistState>()((set, get) => ({
         toast.success('Removed from wishlist');
       }
       set({ wishlistedIds: newIds, count: newIds.size });
-      // Refresh full list
-      get().fetchWishlist();
+      // Refresh full list. Awaited so a slow refetch can't land after a later
+      // toggle/remove's refetch and overwrite it with stale data (out-of-order responses).
+      await get().fetchWishlist();
     } catch {
       toast.error('Failed to update wishlist');
     }
@@ -56,7 +57,7 @@ export const useWishlistStore = create<WishlistState>()((set, get) => ({
     try {
       await wishlistService.removeItem(wishlistId);
       toast.success('Removed from wishlist');
-      get().fetchWishlist();
+      await get().fetchWishlist();
     } catch {
       toast.error('Failed to remove item');
     }
@@ -66,7 +67,7 @@ export const useWishlistStore = create<WishlistState>()((set, get) => ({
     try {
       await wishlistService.moveToCart(wishlistId);
       toast.success('Moved to cart');
-      get().fetchWishlist();
+      await get().fetchWishlist();
     } catch {
       toast.error('Failed to move to cart');
     }

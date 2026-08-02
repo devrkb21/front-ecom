@@ -1,4 +1,4 @@
-export { cn, formatPrice, getImageUrl, truncateText } from './helpers';
+export { cn, formatPrice, getImageUrl, truncateText, getCartItemStockLimit } from './helpers';
 export {
 	trackPageView,
 	trackViewContent,
@@ -7,3 +7,4 @@ export {
 	trackPurchase,
 	type TrackingItemPayload,
 } from './tracking';
+export { sanitizeHtml, sanitizeCss } from './sanitize';

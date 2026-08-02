@@ -11,6 +11,7 @@ import { Button, ProductDetailsSkeleton, EmptyState, VariantSelector, SmartImage
 import { ProductCard } from '@/components/products';
 import { getImageUrl, formatPrice, trackViewContent } from '@/utils';
 import { getProductGridClassName } from '@/utils/product-grid';
+import { sanitizeHtml } from '@/utils/sanitize';
 import toast from 'react-hot-toast';
 
 type ProductTab = 'description' | 'reviews';
@@ -885,7 +886,7 @@ export default function ProductPage() {
               {product.short_description && (
                 <div 
                   className="mt-4 text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none prose-p:my-1" 
-                  dangerouslySetInnerHTML={{ __html: product.short_description }} 
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.short_description) }}
                 />
               )}
 
@@ -1039,7 +1040,7 @@ export default function ProductPage() {
                 <h2 className="mb-4 text-xl font-bold text-gray-900">Product Details</h2>
                 <div className="space-y-4 text-sm leading-7 text-gray-700">
                   {product.description
-                    ? <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: product.description }} />
+                    ? <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }} />
                     : <p>Product details will be updated soon.</p>}
                 </div>
               </>

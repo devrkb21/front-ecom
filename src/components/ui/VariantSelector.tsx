@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { ProductVariant, VariantAttribute } from '@/types';
 
 interface VariantSelectorProps {
@@ -62,20 +62,39 @@ export function VariantSelector({ variants, selectedVariant, onVariantChange }: 
 
   const [selectedValues, setSelectedValues] = useState<Record<number, number>>({});
 
-  // Sync from selectedVariant on mount or external change
+  // Tracks the `variants` array reference so we can tell "same product, still narrowing
+  // down attribute choices" apart from "a different product's variants were loaded".
+  const previousVariantsRef = useRef(variants);
+  // Tracks whether we previously had a fully-matched selectedVariant, so we can tell
+  // "user is mid-selection (never had a full match yet)" apart from "parent explicitly
+  // reset selectedVariant to null" (e.g. after add-to-cart).
+  const hadSelectedVariantRef = useRef(!!selectedVariant);
+
+  // Sync from selectedVariant on mount or external change.
   useEffect(() => {
+    const variantsChanged = variants !== previousVariantsRef.current;
+    previousVariantsRef.current = variants;
+
     if (selectedVariant) {
       const values: Record<number, number> = {};
       selectedVariant.attributes.forEach((attr) => {
         values[attr.attribute_id] = attr.value_id;
       });
       setSelectedValues(values);
-    } else {
-      // If selectedVariant is null, but we have some selections, don't clear them 
-      // unless we want to reset. To handle reset from parent, we can check if 
-      // the variant list changed. For now, keep internal state.
+      hadSelectedVariantRef.current = true;
+      return;
     }
-  }, [selectedVariant]);
+
+    // selectedVariant is null. This happens both when the user is still mid-selection
+    // (no full variant match yet — keep the in-progress choices highlighted) and when
+    // the parent explicitly reset selectedVariant to null (new product loaded, or reset
+    // after add-to-cart) — in which case stale selections must be cleared, otherwise
+    // options can appear pre-selected for a product/variant the user never chose.
+    if (variantsChanged || hadSelectedVariantRef.current) {
+      setSelectedValues({});
+    }
+    hadSelectedVariantRef.current = false;
+  }, [selectedVariant, variants]);
 
   // Find variant matching selected attribute values
   const findMatchingVariant = (newValues: Record<number, number>): ProductVariant | null => {

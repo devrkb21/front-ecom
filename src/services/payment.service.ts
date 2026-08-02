@@ -1,10 +1,9 @@
-import axios from 'axios';
-import { getAuthToken, initCsrf, internalGet } from './api';
-import { 
-  PaymentMethod, 
+import api, { initCsrf, internalGet } from './api';
+import {
+  PaymentMethod,
   Payment,
-  StripeConfig, 
-  StripePaymentIntent, 
+  StripeConfig,
+  StripePaymentIntent,
   StripeConfirmResult,
   BkashConfig,
   BkashPayment,
@@ -50,13 +49,12 @@ const normalizePaymentMethod = (method: RawPaymentMethod): PaymentMethod => {
   };
 };
 
-const buildAuthHeaders = (): Record<string, string> => {
-  const token = getAuthToken();
-  return {
-    Accept: 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
+// Authenticated payment endpoints are served through the allowlisted /api/proxy prefix.
+// Routing these through the shared `api` axios instance (instead of raw axios calls)
+// means they pick up the same interceptors as the rest of the app — most importantly the
+// 401 interceptor that clears the auth token and redirects to /login if the session
+// expires mid-checkout/payment.
+const PROXY_BASE_URL = '/api/proxy';
 
 export const paymentService = {
   // Payment Methods
@@ -79,25 +77,21 @@ export const paymentService = {
 
   // Payments
   async getPaymentForOrder(orderId: number): Promise<Payment> {
-    const response = await axios.get(`/api/proxy/payments/order/${orderId}`, {
-      headers: buildAuthHeaders(),
-    });
+    const response = await api.get(`payments/order/${orderId}`, { baseURL: PROXY_BASE_URL });
     return unwrapEnvelope<Payment>(response.data);
   },
 
   async getOrderPaymentSummary(orderId: number, guestToken?: string): Promise<Order> {
-    const response = await axios.get(`/api/proxy/orders/${orderId}/payment-summary`, {
+    const response = await api.get(`orders/${orderId}/payment-summary`, {
+      baseURL: PROXY_BASE_URL,
       params: guestToken ? { guest_token: guestToken } : undefined,
-      headers: buildAuthHeaders(),
     });
     return unwrapEnvelope<Order>(response.data);
   },
 
   // Stripe Integration
   async getStripeConfig(): Promise<StripeConfig> {
-    const response = await axios.get('/api/proxy/stripe/config', {
-      headers: buildAuthHeaders(),
-    });
+    const response = await api.get('stripe/config', { baseURL: PROXY_BASE_URL });
     return unwrapEnvelope<StripeConfig>(response.data);
   },
 
@@ -121,12 +115,10 @@ export const paymentService = {
       payload.save_payment_method = options.savePaymentMethod;
     }
 
-    const response = await axios.post(
-      '/api/proxy/stripe/create-payment-intent',
+    const response = await api.post(
+      'stripe/create-payment-intent',
       payload,
-      {
-        headers: buildAuthHeaders(),
-      }
+      { baseURL: PROXY_BASE_URL }
     );
     return unwrapEnvelope<StripePaymentIntent>(response.data);
   },
@@ -153,21 +145,17 @@ export const paymentService = {
       payload.save_payment_method = options.savePaymentMethod;
     }
 
-    const response = await axios.post(
-      '/api/proxy/stripe/confirm-payment',
+    const response = await api.post(
+      'stripe/confirm-payment',
       payload,
-      {
-        headers: buildAuthHeaders(),
-      }
+      { baseURL: PROXY_BASE_URL }
     );
     return unwrapEnvelope<StripeConfirmResult>(response.data);
   },
 
   // bKash Integration
   async getBkashConfig(): Promise<BkashConfig> {
-    const response = await axios.get('/api/proxy/bkash/config', {
-      headers: buildAuthHeaders(),
-    });
+    const response = await api.get('bkash/config', { baseURL: PROXY_BASE_URL });
     return unwrapEnvelope<BkashConfig>(response.data);
   },
 
@@ -183,40 +171,34 @@ export const paymentService = {
       payload.guest_token = guestToken;
     }
 
-    const response = await axios.post(
-      '/api/proxy/bkash/create-payment',
+    const response = await api.post(
+      'bkash/create-payment',
       payload,
-      {
-        headers: buildAuthHeaders(),
-      }
+      { baseURL: PROXY_BASE_URL }
     );
     return unwrapEnvelope<BkashPayment>(response.data);
   },
 
   async checkBkashStatus(orderId: number): Promise<BkashStatus> {
-    const response = await axios.get('/api/proxy/bkash/check-status', {
+    const response = await api.get('bkash/check-status', {
+      baseURL: PROXY_BASE_URL,
       params: { order_id: orderId },
-      headers: buildAuthHeaders(),
     });
     return unwrapEnvelope<BkashStatus>(response.data);
   },
 
   async getSavedPaymentMethods(): Promise<SavedPaymentMethod[]> {
-    const response = await axios.get('/api/proxy/saved-payment-methods', {
-      headers: buildAuthHeaders(),
-    });
+    const response = await api.get('saved-payment-methods', { baseURL: PROXY_BASE_URL });
 
     return extractCollection<SavedPaymentMethod>(response.data);
   },
 
   async setDefaultSavedPaymentMethod(savedPaymentMethodId: number): Promise<SavedPaymentMethod> {
     await initCsrf();
-    const response = await axios.post(
-      `/api/proxy/saved-payment-methods/${savedPaymentMethodId}/set-default`,
+    const response = await api.post(
+      `saved-payment-methods/${savedPaymentMethodId}/set-default`,
       {},
-      {
-        headers: buildAuthHeaders(),
-      }
+      { baseURL: PROXY_BASE_URL }
     );
 
     return unwrapEnvelope<SavedPaymentMethod>(response.data);
@@ -224,12 +206,10 @@ export const paymentService = {
 
   async removeSavedPaymentMethod(savedPaymentMethodId: number): Promise<void> {
     await initCsrf();
-    await axios.post(
-      `/api/proxy/saved-payment-methods/${savedPaymentMethodId}/remove`,
+    await api.post(
+      `saved-payment-methods/${savedPaymentMethodId}/remove`,
       {},
-      {
-        headers: buildAuthHeaders(),
-      }
+      { baseURL: PROXY_BASE_URL }
     );
   },
 };

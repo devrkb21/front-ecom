@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import axios from 'axios';
 import { Mail, MapPin, Phone, CheckCircle2, Loader2 } from 'lucide-react';
+import api from '@/services/api';
 
 interface ContactFormState {
   first_name: string;
@@ -34,23 +36,20 @@ export default function ContactForm({ phone, email, address }: { phone: string; 
     setSuccess(false);
 
     try {
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-      const res = await fetch(`${apiUrl}/contact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      // Go through the public BFF proxy (/api/public/*) like the rest of the app,
+      // instead of calling the backend API directly from the browser.
+      const response = await api.post('/contact', form);
+      const data = response.data;
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
+      if (data?.success) {
         setSuccess(true);
         setForm({ first_name: '', last_name: '', email: '', subject: '', message: '' });
       } else {
-        setError(data.message || 'Something went wrong. Please try again.');
+        setError(data?.message || 'Something went wrong. Please try again.');
       }
     } catch (err) {
-      setError('Network error. Please check your connection and try again.');
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setError(message || 'Network error. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

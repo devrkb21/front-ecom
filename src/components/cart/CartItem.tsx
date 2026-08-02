@@ -3,7 +3,7 @@
 import { CartItem as CartItemType } from '@/types';
 import { Button, SmartImage } from '@/components/ui';
 import { useCartStore } from '@/stores';
-import { getImageUrl, formatPrice } from '@/utils';
+import { getImageUrl, formatPrice, getCartItemStockLimit } from '@/utils';
 
 interface CartItemProps {
   item: CartItemType;
@@ -19,8 +19,10 @@ export function CartItem({ item }: CartItemProps) {
     || item.product.images?.[0]?.url
     || undefined;
   
-  // Get current stock from variant or product
-  const currentStock = item.variant?.stock_quantity ?? 100; // Default high if not specified
+  // Get current stock from variant, falling back to the actual product stock for
+  // non-variant products (previously defaulted to a hardcoded 100, which silently
+  // allowed over-ordering past real stock for products without variants).
+  const currentStock = getCartItemStockLimit(item);
 
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1) return;

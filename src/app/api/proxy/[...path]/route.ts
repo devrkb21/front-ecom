@@ -65,6 +65,34 @@ function isAllowedPostPath(path: string): boolean {
   return ALLOWED_POST_PATHS.some((pattern) => pattern.test(path));
 }
 
+function hasTraversalSegment(pathSegments: string[]): boolean {
+  return pathSegments.some((segment) => {
+    if (segment === '.' || segment === '..') {
+      return true;
+    }
+    try {
+      const decoded = decodeURIComponent(segment);
+      return decoded === '.' || decoded === '..';
+    } catch {
+      // Malformed URI component — treat as suspicious and reject.
+      return true;
+    }
+  });
+}
+
+function invalidateGetCacheForPrefix(prefix: string, request: NextRequest): void {
+  const authorization = request.headers.get('authorization') || '';
+  const authSuffix = `|auth:${authorization}`;
+
+  for (const key of cachedGetResponses.keys()) {
+    const [keyPath] = key.split('?');
+    const matchesPrefix = keyPath === prefix || keyPath.startsWith(`${prefix}/`) || prefix.startsWith(`${keyPath}/`);
+    if (matchesPrefix && key.endsWith(authSuffix)) {
+      cachedGetResponses.delete(key);
+    }
+  }
+}
+
 function buildForwardHeaders(request: NextRequest): Headers {
   const headers = new Headers();
   headers.set('Accept', 'application/json');
@@ -165,7 +193,18 @@ function jsonNoStore(body: unknown, status: number): NextResponse {
   });
 }
 
+const MUTATION_RELATED_GET_PREFIXES: Record<string, string[]> = {
+  orders: ['orders'],
+  stripe: ['payments/order', 'orders'],
+  bkash: ['payments/order', 'orders'],
+  'saved-payment-methods': ['saved-payment-methods'],
+};
+
 async function handleProxy(request: NextRequest, pathSegments: string[], method: 'GET' | 'POST'): Promise<NextResponse> {
+  if (hasTraversalSegment(pathSegments)) {
+    return jsonNoStore({ success: false, message: 'Invalid path.' }, 400);
+  }
+
   const normalizedPath = pathSegments.join('/');
   const now = Date.now();
   const getCacheKey = method === 'GET' ? buildGetCacheKey(normalizedPath, request) : null;
@@ -216,6 +255,14 @@ async function handleProxy(request: NextRequest, pathSegments: string[], method:
         setCachedGetResponse(getCacheKey, upstream.status, bodyText, contentType);
       } else if (shouldServeStale && cachedGetResponse && cachedGetResponse.staleUntil > Date.now()) {
         return responseFromCache(cachedGetResponse, 'STALE');
+      }
+    }
+
+    if (method === 'POST' && upstream.ok) {
+      const resourceKey = normalizedPath.split('/')[0];
+      const relatedPrefixes = MUTATION_RELATED_GET_PREFIXES[resourceKey] || [resourceKey];
+      for (const prefix of relatedPrefixes) {
+        invalidateGetCacheForPrefix(prefix, request);
       }
     }
 

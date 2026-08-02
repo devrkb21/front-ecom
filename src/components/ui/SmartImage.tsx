@@ -61,16 +61,26 @@ type SmartImageProps = Omit<ImageProps, 'onError'> & {
 };
 
 export function SmartImage({ src, originalSrc, alt, ...rest }: SmartImageProps) {
-  const [currentSrc, setCurrentSrc] = useState<string | typeof src>(src);
-  const [candidates, setCandidates] = useState<string[]>([]);
-  const [candidateIndex, setCandidateIndex] = useState(-1);
+  // Seed state with the webp URL synchronously (via lazy initializers) rather than
+  // starting with the raw non-webp `src` and swapping it in a post-mount effect — the
+  // latter caused every image to fire an initial request for the non-webp URL and then
+  // immediately re-request the webp URL, doubling network requests and causing a flicker.
+  const [currentSrc, setCurrentSrc] = useState<string | typeof src>(() =>
+    typeof src === 'string' ? getWebpUrl(src) : src
+  );
+  const [candidates, setCandidates] = useState<string[]>(() =>
+    typeof src === 'string' ? getFallbackCandidates(src, getWebpUrl(src)) : []
+  );
+  const [candidateIndex, setCandidateIndex] = useState(() => (typeof src === 'string' ? 0 : -1));
 
-  // Synchronize state when src prop changes
+  // Synchronize state when the src prop changes after mount (e.g. gallery thumbnail
+  // selection). On initial mount these computed values already match the lazy-initialized
+  // state above, so this is a no-op then and does not cause an extra request.
   useEffect(() => {
     if (typeof src === 'string') {
       const targetWebp = getWebpUrl(src);
       setCurrentSrc(targetWebp);
-      
+
       const list = getFallbackCandidates(src, targetWebp);
       setCandidates(list);
       setCandidateIndex(0);

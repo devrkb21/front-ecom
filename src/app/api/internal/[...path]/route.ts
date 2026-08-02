@@ -61,6 +61,21 @@ function isAllowedPath(path: string): boolean {
   return ALLOWED_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
+function hasTraversalSegment(pathSegments: string[]): boolean {
+  return pathSegments.some((segment) => {
+    if (segment === '.' || segment === '..') {
+      return true;
+    }
+    try {
+      const decoded = decodeURIComponent(segment);
+      return decoded === '.' || decoded === '..';
+    } catch {
+      // Malformed URI component — treat as suspicious and reject.
+      return true;
+    }
+  });
+}
+
 function buildHeaders(secret: string, request: NextRequest): Headers {
   const headers = new Headers();
   headers.set('Accept', 'application/json');
@@ -135,6 +150,10 @@ function jsonNoStore(body: unknown, status: number): NextResponse {
 }
 
 async function handleProxy(request: NextRequest, pathSegments: string[], method: 'GET' | 'POST'): Promise<NextResponse> {
+  if (hasTraversalSegment(pathSegments)) {
+    return jsonNoStore({ success: false, message: 'Invalid path.' }, 400);
+  }
+
   const normalizedPath = pathSegments.join('/');
   const now = Date.now();
   const getCacheKey = method === 'GET' ? buildGetCacheKey(normalizedPath, request) : null;

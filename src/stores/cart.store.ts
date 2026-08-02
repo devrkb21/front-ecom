@@ -193,6 +193,86 @@ const resolveGuestProduct = (productId: number, snapshot?: AddToCartSnapshot): C
   };
 };
 
+// Pure helpers for guest-cart mutations. Each takes a cart snapshot and returns a new,
+// recalculated cart — they are re-run against the freshest `get().cart` immediately before
+// the final `set()` call in each action below, so a concurrent mutation that completed while
+// we were awaiting (settings lookups, coupon revalidation, etc.) is not silently overwritten.
+const applyGuestItemAdd = (
+  cart: Cart,
+  productId: number,
+  variantId: number | undefined,
+  quantity: number,
+  guestProduct: CartProduct,
+  unitPrice: number,
+  snapshotVariant?: ProductVariant | null
+): Cart => {
+  const existingItem = cart.items.find(
+    (item) => item.product_id === productId && (item.variant_id ?? null) === (variantId ?? null)
+  );
+
+  let items: CartItem[];
+
+  if (existingItem) {
+    items = cart.items.map((item) =>
+      item.product_id === productId && (item.variant_id ?? null) === (variantId ?? null)
+        ? {
+            ...item,
+            quantity: item.quantity + quantity,
+            price: unitPrice,
+            product: guestProduct,
+            variant: snapshotVariant ?? item.variant ?? null,
+            updated_at: nowIso(),
+          }
+        : item
+    );
+  } else {
+    items = [
+      ...cart.items,
+      {
+        id: Date.now(),
+        product_id: productId,
+        variant_id: variantId ?? null,
+        quantity,
+        price: unitPrice,
+        subtotal: unitPrice * quantity,
+        product: guestProduct,
+        variant: snapshotVariant ?? null,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      },
+    ];
+  }
+
+  return recalculateGuestCart({ ...cart, items });
+};
+
+const applyGuestQuantityUpdate = (
+  cart: Cart,
+  productId: number,
+  variantId: number | undefined,
+  quantity: number
+): Cart =>
+  recalculateGuestCart({
+    ...cart,
+    items: cart.items.map((item) =>
+      item.product_id === productId && (item.variant_id ?? null) === (variantId ?? null)
+        ? { ...item, quantity, updated_at: nowIso() }
+        : item
+    ),
+  });
+
+const applyGuestItemRemoval = (
+  cart: Cart,
+  productId: number,
+  variantId: number | undefined
+): Cart =>
+  recalculateGuestCart({
+    ...cart,
+    items: cart.items.filter(
+      (item) => !(item.product_id === productId && (item.variant_id ?? null) === (variantId ?? null))
+    ),
+  });
+
 const resolveTrackingItem = ({
   productId,
   quantity,

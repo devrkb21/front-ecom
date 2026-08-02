@@ -1,25 +1,11 @@
 import { Metadata } from 'next';
 import { ArrowLeft, Lock, Shield, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-
-async function fetchPage(slug: string) {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  if (!apiUrl) return null;
-  try {
-    const res = await fetch(`${apiUrl}/pages/${slug}`, {
-      headers: { 'X-Internal-Secret': process.env.INTERNAL_API_SECRET || '' },
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return null;
-    const payload = await res.json();
-    return payload?.data || null;
-  } catch (err) {
-    return null;
-  }
-}
+import { sanitizeHtml } from '@/utils/sanitize';
+import { fetchServerPage } from '@/services/server-content.service';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const page = await fetchPage('privacy-policy');
+  const page = await fetchServerPage('privacy-policy');
   if (!page) return { title: 'Privacy Policy' };
   
   return {
@@ -29,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PrivacyPolicyPage() {
-  const page = await fetchPage('privacy-policy');
+  const page = await fetchServerPage('privacy-policy');
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -81,7 +67,7 @@ export default async function PrivacyPolicyPage() {
           <div className="p-8 md:p-16">
             <div className="prose prose-lg prose-accent max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-a:text-accent-600 hover:prose-a:text-accent-700">
               {page?.content ? (
-                <div dangerouslySetInnerHTML={{ __html: page.content }} />
+                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }} />
               ) : (
                 <>
                   <h2>Introduction</h2>

@@ -30,6 +30,11 @@ const INTERNAL_PROXY_PREFIX = '/api/internal';
 const INTERNAL_GET_RETRY_COUNT = 2;
 const INTERNAL_GET_RETRY_DELAY_MS = 200;
 const INTERNAL_GET_CACHE_PREFIX = 'api.internal.get.v1:';
+// Cached GET data older than this is considered "very stale" — it is still used as an
+// absolute last resort when a fetch fails and there is no fresher data available, but a
+// clear warning is logged so stale-data usage during a prolonged outage is visible.
+const INTERNAL_GET_MAX_STALE_MS = 60 * 60 * 1000; // 1 hour
+const INTERNAL_GET_CACHE_MAX_ENTRIES = 200;
 
 interface InternalGetCacheEntry<T = unknown> {
   savedAt: number;
@@ -47,7 +52,13 @@ if (API_URL_RAW && API_URL_RAW !== API_URL && typeof window !== 'undefined') {
   console.warn(`[API] Normalized NEXT_PUBLIC_API_URL from "${API_URL_RAW}" to "${API_URL}".`);
 }
 
-// Token storage (in-memory for security)
+// Token storage. NOTE: despite the in-memory `authToken` variable below, the token is
+// persisted to (and read back from) localStorage, so it is NOT in-memory-only — it is
+// readable by any JavaScript running on this origin. This is a known tradeoff; a full
+// migration to httpOnly cookies is out of scope for now. As a result, the token is only
+// as safe as the app's XSS surface — see the dangerouslySetInnerHTML sanitization fixes
+// (src/utils/sanitize.ts, applied to CMS/admin-controlled HTML) elsewhere in the app,
+// which help reduce that attack surface.
 let authToken: string | null = null;
 let csrfInitialized = false;
 
@@ -181,6 +192,47 @@ const readInternalGetCache = <T = unknown>(cacheKey: string): InternalGetCacheEn
   }
 };
 
+const pruneInternalGetLocalStorageCache = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    const entries: { key: string; savedAt: number }[] = [];
+
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(INTERNAL_GET_CACHE_PREFIX)) {
+        continue;
+      }
+
+      let savedAt = 0;
+      try {
+        const raw = window.localStorage.getItem(key);
+        const parsed = raw ? (JSON.parse(raw) as Partial<InternalGetCacheEntry>) : null;
+        savedAt = typeof parsed?.savedAt === 'number' ? parsed.savedAt : 0;
+      } catch {
+        savedAt = 0;
+      }
+
+      entries.push({ key, savedAt });
+    }
+
+    if (entries.length <= INTERNAL_GET_CACHE_MAX_ENTRIES) {
+      return;
+    }
+
+    entries.sort((a, b) => a.savedAt - b.savedAt);
+    const overflow = entries.length - INTERNAL_GET_CACHE_MAX_ENTRIES;
+
+    for (let i = 0; i < overflow; i += 1) {
+      window.localStorage.removeItem(entries[i].key);
+    }
+  } catch {
+    // Ignore localStorage enumeration failures.
+  }
+};
+
 const writeInternalGetCache = <T = unknown>(cacheKey: string, data: T): void => {
   const entry: InternalGetCacheEntry<T> = {
     savedAt: Date.now(),
@@ -195,6 +247,7 @@ const writeInternalGetCache = <T = unknown>(cacheKey: string, data: T): void => 
 
   try {
     window.localStorage.setItem(`${INTERNAL_GET_CACHE_PREFIX}${cacheKey}`, JSON.stringify(entry));
+    pruneInternalGetLocalStorageCache();
   } catch {
     // Ignore localStorage quota or serialization failures and keep memory cache.
   }
@@ -246,6 +299,13 @@ export const internalGet = async <T = unknown>(path: string, config?: AxiosReque
     }
 
     if (cachedEntry) {
+      const staleMs = Date.now() - cachedEntry.savedAt;
+      if (staleMs > INTERNAL_GET_MAX_STALE_MS) {
+        console.warn(
+          `[API] Serving very stale cached data for "${target}" as a last resort after a fetch failure ` +
+          `(cache is ${Math.round(staleMs / 60000)} minutes old). Upstream may be experiencing a prolonged outage.`
+        );
+      }
       return cachedEntry.data;
     }
 

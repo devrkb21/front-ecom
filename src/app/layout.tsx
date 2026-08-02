@@ -307,9 +307,32 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const appearance = await fetchAppearanceSettings();
-  const primaryColor = appearance?.primary_color || '#108474'; // default accent-600
-  const primaryHoverColor = appearance?.primary_hover_color || '#0f766e'; // default accent-700
-  
+
+  const DEFAULT_PRIMARY_COLOR = '#108474'; // default accent-600
+  const DEFAULT_PRIMARY_HOVER_COLOR = '#0f766e'; // default accent-700
+  const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3,8}$/;
+
+  const isValidHexColor = (value: unknown): value is string =>
+    typeof value === 'string' && HEX_COLOR_PATTERN.test(value.trim());
+
+  let primaryColor = DEFAULT_PRIMARY_COLOR;
+  if (appearance?.primary_color) {
+    if (isValidHexColor(appearance.primary_color)) {
+      primaryColor = appearance.primary_color.trim();
+    } else {
+      console.warn(`[layout] Ignoring invalid primary_color "${appearance.primary_color}"; falling back to default.`);
+    }
+  }
+
+  let primaryHoverColor = DEFAULT_PRIMARY_HOVER_COLOR;
+  if (appearance?.primary_hover_color) {
+    if (isValidHexColor(appearance.primary_hover_color)) {
+      primaryHoverColor = appearance.primary_hover_color.trim();
+    } else {
+      console.warn(`[layout] Ignoring invalid primary_hover_color "${appearance.primary_hover_color}"; falling back to default.`);
+    }
+  }
+
   const palette = generatePalette(primaryColor, primaryHoverColor);
 
   return (

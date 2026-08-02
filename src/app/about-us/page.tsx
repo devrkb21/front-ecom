@@ -1,28 +1,14 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { sanitizeHtml } from '@/utils/sanitize';
+import { fetchServerPage } from '@/services/server-content.service';
 
 interface PageProps {
   params: Promise<{ slug?: string }>;
 }
 
-async function fetchPage(slug: string) {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  if (!apiUrl) return null;
-  try {
-    const res = await fetch(`${apiUrl}/pages/${slug}`, {
-      headers: { 'X-Internal-Secret': process.env.INTERNAL_API_SECRET || '' },
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return null;
-    const payload = await res.json();
-    return payload?.data || null;
-  } catch (err) {
-    return null;
-  }
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-  const page = await fetchPage('about-us');
+  const page = await fetchServerPage('about-us');
   if (!page) return { title: 'About Us' };
   
   return {
@@ -32,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutUsPage() {
-  const page = await fetchPage('about-us');
+  const page = await fetchServerPage('about-us');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -66,7 +52,7 @@ export default async function AboutUsPage() {
               {page?.content ? (
                 <div 
                   className="prose prose-lg prose-accent max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-600 prose-p:leading-relaxed prose-img:rounded-2xl prose-img:shadow-md"
-                  dangerouslySetInnerHTML={{ __html: page.content }} 
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
                 />
               ) : (
                 <p className="text-gray-600 text-lg leading-relaxed">

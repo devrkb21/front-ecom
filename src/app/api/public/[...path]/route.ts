@@ -45,6 +45,7 @@ const ALLOWED_POST_PATHS = [
   /^wishlist\/\d+\/move-to-cart$/,
   /^addresses$/,
   /^addresses\/\d+\/set-default$/,
+  /^contact$/,
 ] as const;
 
 const ALLOWED_PUT_PATHS = [
@@ -84,6 +85,21 @@ function resolveApiBase(): string {
 
 function isAllowedGetPath(path: string): boolean {
   return ALLOWED_GET_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+function hasTraversalSegment(pathSegments: string[]): boolean {
+  return pathSegments.some((segment) => {
+    if (segment === '.' || segment === '..') {
+      return true;
+    }
+    try {
+      const decoded = decodeURIComponent(segment);
+      return decoded === '.' || decoded === '..';
+    } catch {
+      // Malformed URI component — treat as suspicious and reject.
+      return true;
+    }
+  });
 }
 
 function isAllowedPath(path: string, method: string): boolean {
@@ -175,6 +191,29 @@ function pruneGetCache(now: number): void {
   }
 }
 
+function invalidateGetCacheForPrefix(prefix: string, request: NextRequest): void {
+  const authorization = request.headers.get('authorization') || '';
+  const sessionId = request.headers.get('x-session-id') || '';
+  const scopeSuffix = `|auth:${authorization}|session:${sessionId}`;
+
+  for (const key of cachedGetResponses.keys()) {
+    const [keyPath] = key.split('?');
+    const matchesPrefix = keyPath === prefix || keyPath.startsWith(`${prefix}/`) || prefix.startsWith(`${keyPath}/`);
+    if (matchesPrefix && key.endsWith(scopeSuffix)) {
+      cachedGetResponses.delete(key);
+    }
+  }
+}
+
+const MUTATION_RELATED_GET_PREFIXES: Record<string, string[]> = {
+  cart: ['cart'],
+  checkout: ['cart'],
+  wishlist: ['wishlist', 'wishlist/check', 'wishlist/count'],
+  addresses: ['addresses'],
+  profile: ['profile', 'auth/me'],
+  auth: ['auth/me', 'profile', 'cart', 'wishlist', 'addresses'],
+};
+
 function setCachedGetResponse(cacheKey: string, status: number, bodyText: string, contentType: string): void {
   const now = Date.now();
   pruneGetCache(now);
@@ -209,6 +248,10 @@ function jsonNoStore(body: unknown, status: number): NextResponse {
 }
 
 async function handleProxy(request: NextRequest, pathSegments: string[], method: 'GET' | 'POST' | 'PUT' | 'DELETE'): Promise<NextResponse> {
+  if (hasTraversalSegment(pathSegments)) {
+    return jsonNoStore({ success: false, message: 'Invalid path.' }, 400);
+  }
+
   const normalizedPath = pathSegments.join('/');
   const now = Date.now();
   const getCacheKey = method === 'GET' ? buildGetCacheKey(normalizedPath, request) : null;
@@ -255,6 +298,14 @@ async function handleProxy(request: NextRequest, pathSegments: string[], method:
         setCachedGetResponse(getCacheKey, upstream.status, bodyText, contentType);
       } else if (shouldServeStale && cachedGetResponse && cachedGetResponse.staleUntil > Date.now()) {
         return responseFromCache(cachedGetResponse, 'STALE');
+      }
+    }
+
+    if (method !== 'GET' && upstream.ok) {
+      const resourceKey = normalizedPath.split('/')[0];
+      const relatedPrefixes = MUTATION_RELATED_GET_PREFIXES[resourceKey] || [resourceKey];
+      for (const prefix of relatedPrefixes) {
+        invalidateGetCacheForPrefix(prefix, request);
       }
     }
 

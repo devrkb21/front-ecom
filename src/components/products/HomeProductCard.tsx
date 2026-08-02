@@ -1,78 +1,22 @@
 import Link from 'next/link';
 import type { Product } from '@/types';
-import { formatPrice, getImageUrl } from '@/utils';
+import { getImageUrl } from '@/utils';
+import { getProductPriceDisplay, isProductOutOfStock, isProductOnSale } from '@/utils/product-grid';
 import { SmartImage } from '@/components/ui';
 
 interface HomeProductCardProps {
   product: Product;
 }
 
-const getPriceDisplay = (product: Product): { current: string; original: string | null; isRange: boolean } => {
-  if (product.has_variants && Array.isArray(product.variants) && product.variants.length > 0) {
-    const activeVariants = product.variants
-      .filter((variant) => variant.is_active)
-      .map((variant) => {
-        return {
-          current: variant.current_price ?? variant.discounted_price ?? variant.final_price,
-          regular: variant.regular_price ?? (product.price + variant.price_adjustment),
-        };
-      })
-      .filter((pricing) => Number.isFinite(pricing.current));
-
-    if (activeVariants.length > 0) {
-      const currentPrices = activeVariants.map((pricing) => pricing.current);
-      const minCurrentPrice = Math.min(...currentPrices);
-      const maxCurrentPrice = Math.max(...currentPrices);
-
-      const matchingRegularPrices = activeVariants
-        .filter((pricing) => pricing.current === minCurrentPrice)
-        .map((pricing) => pricing.regular);
-
-      const minRegularForCheapest = matchingRegularPrices.length > 0
-        ? Math.min(...matchingRegularPrices)
-        : null;
-
-      const original = minRegularForCheapest !== null && minRegularForCheapest > minCurrentPrice
-        ? formatPrice(minRegularForCheapest)
-        : null;
-
-      return {
-        current: formatPrice(minCurrentPrice),
-        original,
-        isRange: minCurrentPrice !== maxCurrentPrice,
-      };
-    }
-  }
-
-  if (
-    product.has_price_range
-    && typeof product.price_range_min === 'number'
-    && typeof product.price_range_max === 'number'
-  ) {
-    return {
-      current: formatPrice(product.price_range_min),
-      original: null,
-      isRange: product.price_range_max > product.price_range_min,
-    };
-  }
-
-  return {
-    current: formatPrice(product.current_price),
-    original: product.is_on_sale && product.sale_price !== null ? formatPrice(product.price) : null,
-    isRange: false,
-  };
-};
-
+// Price display, stock, and sale-badge logic are shared with ProductCard via
+// src/utils/product-grid.ts to avoid duplicating the variant price-range/sale-detection
+// rules in two places.
 export function HomeProductCard({ product }: HomeProductCardProps) {
   const imageUrl = product.image_url || product.images?.[0]?.url;
   const imageAlt = product.images?.[0]?.alt || product.name;
-  const isOutOfStock = product.has_variants
-    ? Array.isArray(product.variants) && product.variants.length > 0
-      ? product.variants.every((variant) => !variant.in_stock || !variant.is_active)
-      : !product.in_stock
-    : !product.in_stock;
-  const isOnSale = product.is_on_sale && product.sale_price !== null;
-  const priceDisplay = getPriceDisplay(product);
+  const isOutOfStock = isProductOutOfStock(product);
+  const isOnSale = isProductOnSale(product);
+  const priceDisplay = getProductPriceDisplay(product);
 
   return (
     <Link href={`/products/${product.slug}`} className="group block">

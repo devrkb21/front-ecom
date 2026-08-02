@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { getAuthToken } from './api';
+import api from './api';
 import { unwrapEnvelope } from './normalizers';
 import { getCheckoutSessionHeaders } from './checkout-session';
 
@@ -51,20 +50,13 @@ interface AbandonedCartTrackResponse {
   abandoned_cart_id: number;
 }
 
-const buildHeaders = (): Record<string, string> => {
-  const token = getAuthToken();
-
-  return {
-    Accept: 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...getCheckoutSessionHeaders(),
-  };
-};
-
 export const abandonedCartService = {
   async track(payload: AbandonedCartTrackPayload): Promise<AbandonedCartTrackResponse> {
-    const response = await axios.post('/api/public/checkout/track', payload, {
-      headers: buildHeaders(),
+    // Uses the shared api instance (default baseURL /api/public) so this call picks up
+    // the same auth-token attachment, CSRF, and 401 interceptor behavior as the rest of
+    // the app instead of a raw axios call with a hand-rolled auth header.
+    const response = await api.post('checkout/track', payload, {
+      headers: getCheckoutSessionHeaders(),
     });
 
     return unwrapEnvelope<AbandonedCartTrackResponse>(response.data);

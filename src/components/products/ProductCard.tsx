@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product } from '@/types';
-import { getImageUrl, formatPrice } from '@/utils';
+import { getImageUrl } from '@/utils';
+import { getProductPriceDisplay, isProductOutOfStock, isProductOnSale } from '@/utils/product-grid';
 import { useMemo, useState } from 'react';
 import { useAuthStore, useCartStore, useWishlistStore } from '@/stores';
 import { SmartImage } from '@/components/ui';
@@ -47,71 +48,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const imageAlt = product.images?.[0]?.alt || product.name;
   const secondaryImageUrl = product.images?.[1]?.url;
 
-  // Price display
-  const priceDisplay = useMemo(() => {
-    if (product.has_variants && product.variants && product.variants.length > 0) {
-      const activeVariants = product.variants
-        .filter((v) => v.is_active)
-        .map((variant) => {
-          return {
-            current: variant.current_price ?? variant.discounted_price ?? variant.final_price,
-            regular: variant.regular_price ?? (product.price + variant.price_adjustment),
-          };
-        })
-        .filter((pricing) => Number.isFinite(pricing.current));
-
-      if (activeVariants.length > 0) {
-        const currentPrices = activeVariants.map((pricing) => pricing.current);
-        const minCurrentPrice = Math.min(...currentPrices);
-        const maxCurrentPrice = Math.max(...currentPrices);
-
-        const matchingRegularPrices = activeVariants
-          .filter((pricing) => pricing.current === minCurrentPrice)
-          .map((pricing) => pricing.regular);
-
-        const minRegularForCheapest = matchingRegularPrices.length > 0
-          ? Math.min(...matchingRegularPrices)
-          : null;
-
-        const original = minRegularForCheapest !== null && minRegularForCheapest > minCurrentPrice
-          ? formatPrice(minRegularForCheapest)
-          : null;
-
-        return {
-          current: formatPrice(minCurrentPrice),
-          original,
-          isRange: minCurrentPrice !== maxCurrentPrice,
-        };
-      }
-    }
-
-    if (
-      product.has_price_range
-      && typeof product.price_range_min === 'number'
-      && typeof product.price_range_max === 'number'
-    ) {
-      return {
-        current: formatPrice(product.price_range_min),
-        original: null,
-        isRange: product.price_range_max > product.price_range_min,
-      };
-    }
-
-    return {
-      current: formatPrice(product.current_price),
-      original: product.is_on_sale && product.sale_price !== null ? formatPrice(product.price) : null,
-      isRange: false,
-    };
-  }, [product]);
-
-  const isOutOfStock = useMemo(() => {
-    if (product.has_variants && product.variants) {
-      return product.variants.every(v => !v.in_stock || !v.is_active);
-    }
-    return !product.in_stock;
-  }, [product]);
-
-  const isOnSale = product.is_on_sale && product.sale_price !== null;
+  // Price display, stock, and sale-badge logic are shared with HomeProductCard via
+  // src/utils/product-grid.ts to avoid duplicating the variant price-range/sale-detection
+  // rules in two places.
+  const priceDisplay = useMemo(() => getProductPriceDisplay(product), [product]);
+  const isOutOfStock = useMemo(() => isProductOutOfStock(product), [product]);
+  const isOnSale = isProductOnSale(product);
   const isVariableProduct = Boolean(product.has_variants);
 
   const handleAddToCart = async (event: React.MouseEvent<HTMLButtonElement>) => {

@@ -1,16 +1,13 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+interface OrderDetailsPageProps {
+  params: Promise<{ id: string }>;
+}
 
-export default function OrderDetailsPage() {
-  const params = useParams();
-  const router = useRouter();
-  const orderId = params.id as string;
-
-  useEffect(() => {
-    router.replace(`/account/orders/${orderId}`);
-  }, [router, orderId]);
-
-  return null;
+// Server-side alias redirect (matches the pattern used by src/app/orders/page.tsx) —
+// previously this redirected via a client useEffect after mount, which caused a blank
+// page flash before the redirect fired.
+export default async function OrderDetailsPage({ params }: OrderDetailsPageProps) {
+  const { id } = await params;
+  redirect(`/account/orders/${id}`);
 }

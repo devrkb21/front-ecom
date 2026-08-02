@@ -1,7 +1,26 @@
 import { clsx, type ClassValue } from 'clsx';
+import type { CartItem } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
+}
+
+/**
+ * Resolve the quantity cap for a cart item: prefer the selected variant's stock, then
+ * the underlying product's stock. If neither is known (e.g. a locally-built guest cart
+ * snapshot that predates these fields) and the product isn't explicitly flagged
+ * out-of-stock, don't fabricate an arbitrary cap — the backend still validates real
+ * stock at checkout regardless of what limit is enforced client-side here.
+ *
+ * Shared by CartItem and SideCartDrawer so both quantity steppers apply the same cap.
+ */
+export function getCartItemStockLimit(item: CartItem): number {
+  return (
+    item.variant?.stock_quantity
+    ?? item.product?.stock_quantity
+    ?? item.product?.total_stock
+    ?? (item.product?.in_stock === false ? item.quantity : Infinity)
+  );
 }
 
 export function formatPrice(price: string | number | undefined | null): string {

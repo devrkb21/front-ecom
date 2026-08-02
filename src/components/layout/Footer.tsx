@@ -1,39 +1,16 @@
 import Link from 'next/link';
+import { fetchServerGeneralSettings, fetchServerPages } from '@/services/server-content.service';
 
-async function fetchGeneralSettings() {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  if (!apiUrl) return null;
-  try {
-    const res = await fetch(`${apiUrl}/settings/general`, {
-      headers: { 'X-Internal-Secret': process.env.INTERNAL_API_SECRET || '' },
-      next: { revalidate: 300 }
-    });
-    const payload = await res.json();
-    return payload?.data;
-  } catch (err) {
-    return null;
-  }
-}
-
-async function fetchPages() {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  if (!apiUrl) return [];
-  try {
-    const res = await fetch(`${apiUrl}/pages`, {
-      headers: { 'X-Internal-Secret': process.env.INTERNAL_API_SECRET || '' },
-      next: { revalidate: 300 }
-    });
-    const payload = await res.json();
-    return payload?.data || [];
-  } catch (err) {
-    return [];
-  }
-}
-
+// Footer is a Server Component (no 'use client'), so it fetches directly from the
+// backend via the shared server-content helper rather than through src/services'
+// settingsService/pageService — those are built around relative-URL axios calls to the
+// Next.js proxy routes and only resolve correctly from the browser (see
+// server-content.service.ts for details). This also removes the untyped ad hoc fetch()
+// calls that used to live here.
 export async function Footer() {
   const [general, pages] = await Promise.all([
-    fetchGeneralSettings(),
-    fetchPages()
+    fetchServerGeneralSettings(),
+    fetchServerPages()
   ]);
   const siteName = general?.site_name || general?.site_title || 'Our Store';
 
@@ -43,7 +20,7 @@ export async function Footer() {
         {/* Policy Links */}
         <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
           {pages.length > 0 ? (
-            pages.map((page: any) => (
+            pages.map((page) => (
               <Link key={page.id} href={`/${page.slug}`} className="hover:text-accent-600 transition-colors">
                 {page.title}
               </Link>

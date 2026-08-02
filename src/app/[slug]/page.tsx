@@ -1,33 +1,21 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { pageService } from '@/services';
-import { LoadingPage } from '@/components/ui';
+import { sanitizeHtml } from '@/utils/sanitize';
+import { fetchServerPage } from '@/services/server-content.service';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-async function fetchPage(slug: string) {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  if (!apiUrl) return null;
-  try {
-    const res = await fetch(`${apiUrl}/pages/${slug}`, {
-      headers: { 'X-Internal-Secret': process.env.INTERNAL_API_SECRET || '' },
-      next: { revalidate: 300 }
-    });
-    if (!res.ok) return null;
-    const payload = await res.json();
-    return payload?.data || null;
-  } catch (err) {
-    return null;
-  }
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
     const { slug } = await params;
-    const page = await fetchPage(slug);
-    
+    const page = await fetchServerPage(slug);
+
+    if (!page) {
+      return { title: 'Page Not Found' };
+    }
+
     return {
       title: page.meta_title || page.title,
       description: page.meta_description || `View ${page.title}`,
@@ -47,7 +35,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function DynamicPage({ params }: PageProps) {
   try {
     const { slug } = await params;
-    const page = await fetchPage(slug);
+    const page = await fetchServerPage(slug);
 
     if (!page) {
       notFound();
@@ -63,7 +51,7 @@ export default async function DynamicPage({ params }: PageProps) {
             
             <div 
               className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-a:text-accent-600 hover:prose-a:text-accent-700 prose-img:rounded-xl prose-img:shadow-sm"
-              dangerouslySetInnerHTML={{ __html: page.content || '' }} 
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
             />
           </div>
         </div>

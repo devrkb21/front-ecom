@@ -3,10 +3,18 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useCartStore } from '@/stores';
+import type { CartItem as CartItemType } from '@/types';
 import { FreeShippingProgress } from './FreeShippingProgress';
-import { getImageUrl, formatPrice } from '@/utils';
+import { getImageUrl, formatPrice, getCartItemStockLimit } from '@/utils';
 import { settingsService, type GeneralSettings } from '@/services';
+import toast from 'react-hot-toast';
 
+// NOTE: This component duplicates a fair amount of cart item rendering / quantity /
+// coupon logic that also lives in CartItem.tsx and CartSummary.tsx (the full /cart page
+// uses those instead of this drawer). Composing those shared components here would be a
+// larger structural change with more regression risk than is worth taking on as part of
+// this audit fix pass, so this file is left as-is beyond the stock-cap fix below — a
+// follow-up refactor to de-duplicate is recommended but out of scope here.
 export function SideCartDrawer() {
   const {
     cart,
@@ -85,9 +93,16 @@ export function SideCartDrawer() {
     await updateQuantity(productId, quantity - 1, variantId ?? undefined);
   };
 
-  const handleIncrease = async (productId: number, quantity: number, variantId?: number | null) => {
+  const handleIncrease = async (item: CartItemType) => {
     if (isLoading) return;
-    await updateQuantity(productId, quantity + 1, variantId ?? undefined);
+
+    const stockLimit = getCartItemStockLimit(item);
+    if (item.quantity >= stockLimit) {
+      toast.error('No more stock available for this item');
+      return;
+    }
+
+    await updateQuantity(item.product_id, item.quantity + 1, item.variant_id ?? undefined);
   };
 
   const handleRemove = async (productId: number, variantId?: number | null) => {
@@ -204,6 +219,9 @@ export function SideCartDrawer() {
                         .join(' / ')
                     : item.variant?.name;
 
+                  const stockLimit = getCartItemStockLimit(item);
+                  const isAtStockLimit = item.quantity >= stockLimit;
+
                   return (
                     <div
                       key={`${item.product_id}-${item.variant_id ?? 'base'}`}
@@ -268,8 +286,9 @@ export function SideCartDrawer() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => void handleIncrease(item.product_id, item.quantity, item.variant_id)}
-                              className="px-2 py-1 text-gray-600 hover:bg-gray-200"
+                              onClick={() => void handleIncrease(item)}
+                              disabled={isAtStockLimit}
+                              className="px-2 py-1 text-gray-600 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                             >
                               <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />

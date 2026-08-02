@@ -12,6 +12,11 @@ export interface CartProduct {
   image_url?: string;
   images?: ProductImage[];
   in_stock: boolean;
+  // The backend's cart resource embeds the full product resource, which includes these
+  // stock fields — declared optional here since locally-built guest-cart snapshots may
+  // not always populate them.
+  stock_quantity?: number;
+  total_stock?: number;
 }
 
 export interface CartItem {

@@ -20,6 +20,7 @@ import type { BdLocationItem } from '@/services/address.service';
 import type { Product, ProductVariant, ShippingMethod, PaymentMethod } from '@/types';
 import { Button, Input } from '@/components/ui';
 import { getImageUrl, formatPrice } from '@/utils';
+import { sanitizeHtml, sanitizeCss } from '@/utils/sanitize';
 
 const themeStyles = {
   default: {
@@ -816,7 +817,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
       
       {/* Dynamic Niche Header Custom CSS Injector */}
       {landingPage.custom_css && (
-        <style dangerouslySetInnerHTML={{ __html: landingPage.custom_css }} />
+        <style dangerouslySetInnerHTML={{ __html: sanitizeCss(landingPage.custom_css) }} />
       )}
 
       {/* Floating Purchase Sticky Bar (Mobile Only) */}
@@ -910,7 +911,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
             {p.short_description ? (
               <div 
                 className="text-sm md:text-lg opacity-80 leading-relaxed max-w-2xl mx-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                dangerouslySetInnerHTML={{ __html: p.short_description }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(p.short_description) }}
               />
             ) : (
               <p className="text-sm md:text-lg opacity-80 max-w-2xl mx-auto">
@@ -1142,7 +1143,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
                 <div className="relative aspect-video rounded-2xl overflow-hidden shadow-inner bg-black">
                   <div 
                     className="absolute inset-0 w-full h-full [&_iframe]:w-full [&_iframe]:h-full"
-                    dangerouslySetInnerHTML={{ __html: landingPage.video_embed_code }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(landingPage.video_embed_code) }}
                   />
                 </div>
               </div>
@@ -1246,7 +1247,7 @@ export default function LandingPagePublicView({ params }: { params: Promise<{ sl
                   {p.description ? (
                     <div 
                       className="text-sm leading-relaxed space-y-3 opacity-90 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-                      dangerouslySetInnerHTML={{ __html: p.description }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(p.description) }}
                     />
                   ) : (
                     <div className="text-sm leading-relaxed space-y-3 opacity-90">
